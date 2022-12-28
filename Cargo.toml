@@ -12,3 +12,4 @@ crate-type = ["lib"]
 
 [dependencies]
 serde_json = { version = "1.0.91", default-features = false, features = ["alloc"] }
+smoltcp = { version = "0.8.2", features = ["socket-udp"] }
