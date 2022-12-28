@@ -1,85 +1,108 @@
 #![no_std]
 extern crate alloc;
-use alloc::collections::BTreeMap;
+use alloc::{collections::BTreeMap, vec};
 use alloc::string::String;
 use alloc::vec::Vec;
+use smoltcp::storage::PacketMetadata;
+use smoltcp::wire::IpEndpoint;
+use smoltcp::{socket::UdpSocket, storage::PacketBuffer};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+/// A request sent from the NetsBlox server
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeRequest {
-    id: String,
-    service: Vec<String>,
-    device: String,
-    function: Option<String>,
-    paramsList: Vec<String>
+    pub id: String,
+    pub service: Vec<String>,
+    pub device: String,
+    pub function: Option<String>,
+    pub paramsList: Vec<String>
 }
 
-#[derive(Debug)]
+/// A response to be sent to the NetsBlox server
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeResponse {
-    id: String,
-    request: String,
-    service: String,
-    response: Option<Vec<String>>,
-    event: Option<IoTScapeEventResponse>,
-    error: Option<String>
+    pub id: String,
+    pub request: String,
+    pub service: String,
+    pub response: Option<Vec<String>>,
+    pub event: Option<IoTScapeEventResponse>,
+    pub error: Option<String>
 }
 
-#[derive(Debug)]
+/// Data for an event response to be sent to the server
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeEventResponse {
-    r#type: Option<String>,
-    args: Option<Vec<String>>
+    pub r#type: Option<String>,
+    pub args: Option<Vec<String>>
 }
 
-#[derive(Debug)]
-pub struct IoTScapeService {
-    service_name: String
-}
-
-#[derive(Debug)]
+/// Definition of an IoTScape service, to be serialized and set to NetsBlox server
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeServiceDefinition {
-    name: String,
-    id: String,
-    methods: BTreeMap<String, IoTScapeMethodDescription>,
-    events: BTreeMap<String, IoTScapeEventDescription>,
-    description: IoTScapeServiceDescription,
+    pub name: String,
+    pub id: String,
+    pub methods: BTreeMap<String, IoTScapeMethodDescription>,
+    pub events: BTreeMap<String, IoTScapeEventDescription>,
+    pub description: IoTScapeServiceDescription,
 }
 
-#[derive(Debug)]
+/// Service meta-data for an IoTScape Service
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeServiceDescription {
-    description: Option<String>,
-    externalDocumentation: Option<String>,
-    termsOfService: Option<String>,
-    contact: Option<String>,
-    license: Option<String>,
-    version: Option<String>
+    pub description: Option<String>,
+    pub externalDocumentation: Option<String>,
+    pub termsOfService: Option<String>,
+    pub contact: Option<String>,
+    pub license: Option<String>,
+    pub version: String
 }
 
-#[derive(Debug)]
+/// Describes a method belonging to an IoTScape service
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeMethodDescription {
-    documentation: Option<String>,
-    paramsList: Vec<IoTScapeMethodParam>,
-    returns: IoTScapeMethodReturns
+    pub documentation: Option<String>,
+    pub paramsList: Vec<IoTScapeMethodParam>,
+    pub returns: IoTScapeMethodReturns
 }
 
-#[derive(Debug)]
+/// Describes a parameter of a method in an IoTScape service
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeMethodParam {
-    name: String,
-    documentation: Option<String>,
-    r#type: String,
-    optional: bool
+    pub name: String,
+    pub documentation: Option<String>,
+    pub r#type: String,
+    pub optional: bool
 }
 
-#[derive(Debug)]
+/// Describes a return value of a method in an IoTScape service
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeMethodReturns {
-    documentation: Option<String>,
-    r#type: Vec<String>
+    pub documentation: Option<String>,
+    pub r#type: Vec<String>
 }
 
-#[derive(Debug)]
+/// Describes an event type in an IoTScape service
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeEventDescription {
-    paramsList: Vec<String>
+    pub paramsList: Vec<String>
 }
 
-#[derive(Debug)]
-pub struct IoTScapeServer {
-
+/// An IoTScape service and socket setup to send/receive messages
+pub struct IoTScapeService<'a> {
+    pub definition: IoTScapeServiceDefinition,
+    server: IpEndpoint,
+    socket: UdpSocket<'a>
 }
+
+impl<'a> IoTScapeService<'a> {
+    pub fn new(definition: IoTScapeServiceDefinition, server: IpEndpoint ) -> Self { 
+        let mut rx_buffer = PacketBuffer::<'a, _>::new(vec![PacketMetadata::EMPTY, PacketMetadata::EMPTY],vec![0; 65535]);
+        let mut tx_buffer = PacketBuffer::<'a, _>::new(vec![PacketMetadata::EMPTY, PacketMetadata::EMPTY], vec![0; 65535]);
+        Self { definition, socket: UdpSocket::<'a>::new(rx_buffer, tx_buffer), server } 
+    }
+
+    pub fn announce(&self) {
+
+    }
+}
+
