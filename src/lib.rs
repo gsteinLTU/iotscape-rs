@@ -1,11 +1,15 @@
 #![no_std]
 extern crate alloc;
+
+#[cfg(feature = "std")]
+extern crate std;
+
+#[cfg(feature = "std")]
+use std::net::{UdpSocket, SocketAddr};
+
 use alloc::{collections::BTreeMap, vec};
 use alloc::string::String;
 use alloc::vec::Vec;
-use smoltcp::storage::PacketMetadata;
-use smoltcp::wire::IpEndpoint;
-use smoltcp::{socket::UdpSocket, storage::PacketBuffer};
 use serde::{Deserialize, Serialize};
 
 /// A request sent from the NetsBlox server
@@ -87,22 +91,25 @@ pub struct IoTScapeEventDescription {
     pub paramsList: Vec<String>
 }
 
+#[cfg(feature = "std")]
 /// An IoTScape service and socket setup to send/receive messages
-pub struct IoTScapeService<'a> {
+pub struct IoTScapeService {
     pub definition: IoTScapeServiceDefinition,
-    server: IpEndpoint,
-    socket: UdpSocket<'a>
+    server: SocketAddr,
+    socket: UdpSocket
 }
 
-impl<'a> IoTScapeService<'a> {
-    pub fn new(definition: IoTScapeServiceDefinition, server: IpEndpoint ) -> Self { 
-        let mut rx_buffer = PacketBuffer::<'a, _>::new(vec![PacketMetadata::EMPTY, PacketMetadata::EMPTY],vec![0; 65535]);
-        let mut tx_buffer = PacketBuffer::<'a, _>::new(vec![PacketMetadata::EMPTY, PacketMetadata::EMPTY], vec![0; 65535]);
-        Self { definition, socket: UdpSocket::<'a>::new(rx_buffer, tx_buffer), server } 
+#[cfg(feature = "std")]
+impl IoTScapeService {
+    pub fn new(definition: IoTScapeServiceDefinition, server: SocketAddr ) -> Self { 
+        Self { definition, socket: UdpSocket::bind("127.0.0.1:0").unwrap(), server}
     }
 
-    pub fn announce(&self) {
+    pub fn announce(&mut self) {
+        let definition_string = serde_json::to_string(&self.definition).unwrap();
 
+        // Send to server
+        let result = self.socket.send_to(definition_string.as_bytes(), self.server);
     }
 }
 

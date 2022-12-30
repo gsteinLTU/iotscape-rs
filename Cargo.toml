@@ -13,4 +13,8 @@ crate-type = ["lib"]
 [dependencies]
 serde = { version = "1.0.152", default-features = false , features = ["derive", "alloc"] }
 serde_json = { version = "1.0.91", default-features = false, features = ["alloc"] }
-smoltcp = { version = "0.8.2", features = ["socket-udp"] }
+
+[features]
+std = []
+types = []
+default = ["std", "types"]
