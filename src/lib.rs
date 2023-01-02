@@ -7,6 +7,7 @@ extern crate std;
 #[cfg(feature = "std")]
 use std::net::{UdpSocket, SocketAddr};
 
+use alloc::borrow::ToOwned;
 use alloc::{collections::BTreeMap, vec};
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -43,10 +44,10 @@ pub struct IoTScapeEventResponse {
 /// Definition of an IoTScape service, to be serialized and set to NetsBlox server
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeServiceDefinition {
-    pub name: String,
     pub id: String,
     pub methods: BTreeMap<String, IoTScapeMethodDescription>,
     pub events: BTreeMap<String, IoTScapeEventDescription>,
+    #[serde(rename = "service")]
     pub description: IoTScapeServiceDescription,
 }
 
@@ -65,7 +66,7 @@ pub struct IoTScapeServiceDescription {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeMethodDescription {
     pub documentation: Option<String>,
-    pub paramsList: Vec<IoTScapeMethodParam>,
+    pub params: Vec<IoTScapeMethodParam>,
     pub returns: IoTScapeMethodReturns
 }
 
@@ -95,18 +96,19 @@ pub struct IoTScapeEventDescription {
 /// An IoTScape service and socket setup to send/receive messages
 pub struct IoTScapeService {
     pub definition: IoTScapeServiceDefinition,
+    name: String,
     server: SocketAddr,
     socket: UdpSocket
 }
 
 #[cfg(feature = "std")]
 impl IoTScapeService {
-    pub fn new(definition: IoTScapeServiceDefinition, server: SocketAddr ) -> Self { 
-        Self { definition, socket: UdpSocket::bind("127.0.0.1:0").unwrap(), server}
+    pub fn new(name: &str, definition: IoTScapeServiceDefinition, server: SocketAddr ) -> Self { 
+        Self { name: name.to_owned(), definition, socket: UdpSocket::bind("127.0.0.1:0").unwrap(), server}
     }
 
     pub fn announce(&mut self) {
-        let definition_string = serde_json::to_string(&self.definition).unwrap();
+        let definition_string = serde_json::to_string(&BTreeMap::<String, &IoTScapeServiceDefinition>::from([(self.name.to_owned(), &self.definition)])).unwrap();
 
         // Send to server
         let result = self.socket.send_to(definition_string.as_bytes(), self.server);
