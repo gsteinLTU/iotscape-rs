@@ -20,7 +20,7 @@ pub struct IoTScapeRequest {
     pub service: String,
     pub device: String,
     pub function: String,
-    pub params: Vec<String>
+    pub params: Vec<serde_json::Value>
 }
 
 /// A response to be sent to the NetsBlox server
