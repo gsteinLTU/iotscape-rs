@@ -16,5 +16,4 @@ serde_json = { version = "1.0.91", default-features = false, features = ["alloc"
 
 [features]
 std = []
-types = []
-default = ["std", "types"]
+default = ["std"]

@@ -1,16 +1,16 @@
 #![no_std]
+
 extern crate alloc;
 
 #[cfg(feature = "std")]
 extern crate std;
 
+use core::{time::Duration, panic};
+
 #[cfg(feature = "std")]
 use std::net::{UdpSocket, SocketAddr};
 
-use alloc::borrow::ToOwned;
-use alloc::{collections::BTreeMap, vec};
-use alloc::string::String;
-use alloc::vec::Vec;
+use alloc::{borrow::ToOwned, collections::{BTreeMap, VecDeque}, string::String, vec::Vec};
 use serde::{Deserialize, Serialize};
 
 /// A request sent from the NetsBlox server
@@ -20,7 +20,7 @@ pub struct IoTScapeRequest {
     pub service: Vec<String>,
     pub device: String,
     pub function: Option<String>,
-    pub paramsList: Vec<String>
+    pub params: Vec<String>
 }
 
 /// A response to be sent to the NetsBlox server
@@ -52,6 +52,7 @@ pub struct IoTScapeServiceDefinition {
 }
 
 /// Service meta-data for an IoTScape Service
+#[allow(non_snake_case)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeServiceDescription {
     pub description: Option<String>,
@@ -89,7 +90,7 @@ pub struct IoTScapeMethodReturns {
 /// Describes an event type in an IoTScape service
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeEventDescription {
-    pub paramsList: Vec<String>
+    pub params: Vec<String>
 }
 
 #[cfg(feature = "std")]
@@ -98,20 +99,49 @@ pub struct IoTScapeService {
     pub definition: IoTScapeServiceDefinition,
     name: String,
     server: SocketAddr,
-    socket: UdpSocket
+    socket: UdpSocket,
+    pub rx_queue: VecDeque<IoTScapeRequest>,
+    pub tx_queue: VecDeque<IoTScapeResponse>
 }
 
 #[cfg(feature = "std")]
 impl IoTScapeService {
     pub fn new(name: &str, definition: IoTScapeServiceDefinition, server: SocketAddr ) -> Self { 
-        Self { name: name.to_owned(), definition, socket: UdpSocket::bind("127.0.0.1:0").unwrap(), server}
+        Self { 
+            name: name.to_owned(), 
+            definition, 
+            socket: UdpSocket::bind("127.0.0.1:0").unwrap(),
+            server, 
+            rx_queue: VecDeque::<IoTScapeRequest>::new(),
+            tx_queue: VecDeque::<IoTScapeResponse>::new()
+        }
     }
 
-    pub fn announce(&mut self) {
+    pub fn announce(&mut self) -> Result<usize, std::io::Error> {
+        
         let definition_string = serde_json::to_string(&BTreeMap::<String, &IoTScapeServiceDefinition>::from([(self.name.to_owned(), &self.definition)])).unwrap();
 
         // Send to server
-        let result = self.socket.send_to(definition_string.as_bytes(), self.server);
+        self.socket.send_to(definition_string.as_bytes(), self.server)
+    }
+
+    pub fn poll(&mut self, timeout: Option<Duration>) {
+        self.socket.set_read_timeout(timeout.or(Some(Duration::from_millis(15)))).unwrap();
+        self.socket.set_write_timeout(timeout.or(Some(Duration::from_millis(15)))).unwrap();
+
+        loop {
+            let mut buf: [u8; 2048] = [0; 2048];
+            match self.socket.recv(&mut buf) {
+                Ok(_) => {
+                    let msg: IoTScapeRequest = serde_json::from_slice(&buf).unwrap();
+                    self.rx_queue.push_back(msg);
+                },
+                Err(e) => {
+                    std::println!("{}", e);
+                    break;
+                }
+            }
+        }
     }
 }
 
