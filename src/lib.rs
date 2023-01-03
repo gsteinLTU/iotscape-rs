@@ -204,7 +204,7 @@ impl IoTScapeService {
 
     /// Sends an IoTScapeResponse to ther server
     fn send_response(&mut self, response: IoTScapeResponse) {
-        self.socket.send_to(serde_json::to_string(&response).unwrap().as_bytes(), self.server);
+        self.socket.send_to(serde_json::to_string(&response).unwrap().as_bytes(), self.server).expect("Error sending response");
     }
 }
 
