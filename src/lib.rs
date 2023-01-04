@@ -10,7 +10,7 @@ use core::time::Duration;
 #[cfg(feature = "std")]
 use std::net::{UdpSocket, SocketAddr};
 
-use alloc::{borrow::ToOwned, collections::{BTreeMap, VecDeque}, string::{String, ToString}, vec::Vec};
+use alloc::{borrow::ToOwned, collections::{BTreeMap, VecDeque}, string::String, vec::Vec};
 use serde::{Deserialize, Serialize};
 
 /// A request sent from the NetsBlox server
@@ -172,7 +172,7 @@ impl IoTScapeService {
         }
 
         // Send queued messages
-        while self.tx_queue.len() > 0 {
+        while !self.tx_queue.is_empty() {
             let next_msg = self.tx_queue.pop_front().unwrap();
             self.send_response(next_msg);
         }
@@ -196,7 +196,7 @@ impl IoTScapeService {
         self.send_response(IoTScapeResponse {
             id: self.definition.id.clone(),
             request: request.id.to_owned(),
-            service: request.service.to_owned(),
+            service: request.service,
             response,
             event: None,
             error 
