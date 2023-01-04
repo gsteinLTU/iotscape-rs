@@ -14,6 +14,10 @@ crate-type = ["lib"]
 serde = { version = "1.0.152", default-features = false , features = ["derive", "alloc"] }
 serde_json = { version = "1.0.91", default-features = false, features = ["alloc"] }
 
+
+[dev-dependencies]
+tokio = { version = "1.23.0", features = ["full"] }
+
 [features]
 std = []
 default = ["std"]

@@ -29,8 +29,11 @@ pub struct IoTScapeResponse {
     pub id: String,
     pub request: String,
     pub service: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub event: Option<IoTScapeEventResponse>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>
 }
 
@@ -38,7 +41,7 @@ pub struct IoTScapeResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IoTScapeEventResponse {
     pub r#type: Option<String>,
-    pub args: Option<Vec<String>>
+    pub args: Option<BTreeMap<String, String>>
 }
 
 /// Definition of an IoTScape service, to be serialized and set to NetsBlox server
@@ -145,10 +148,10 @@ impl IoTScapeService {
                             // Handle heartbeat immediately
                             if msg.function == "heartbeat" {
                                 self.send_response(IoTScapeResponse {
-                                    id: self.next_msg_id.to_string(),
+                                    id: self.definition.id.clone(),
                                     request: msg.id,
                                     service: msg.service,
-                                    response: None,
+                                    response: Some(alloc::vec![]),
                                     event: None,
                                     error: None,
                                 });
@@ -191,7 +194,7 @@ impl IoTScapeService {
         }
         
         self.send_response(IoTScapeResponse {
-            id: self.next_msg_id.to_string(),
+            id: self.definition.id.clone(),
             request: request.id.to_owned(),
             service: request.service.to_owned(),
             response,
@@ -202,9 +205,23 @@ impl IoTScapeService {
         self.next_msg_id += 1;
     }
 
+    // Set an event message to be sent
+    pub fn send_event(&mut self, call_id: &str, event_type: &str, args: BTreeMap<String, String>) {
+        self.send_response(IoTScapeResponse {
+            id: self.definition.id.clone(),
+            request: call_id.to_owned(),
+            service: self.name.to_owned(),
+            response: None,
+            event: Some(IoTScapeEventResponse { r#type: Some(event_type.to_owned()), args: Some(args) }),
+            error: None,
+        });
+    }
+
     /// Sends an IoTScapeResponse to ther server
     fn send_response(&mut self, response: IoTScapeResponse) {
-        self.socket.send_to(serde_json::to_string(&response).unwrap().as_bytes(), self.server).expect("Error sending response");
+        let as_string = serde_json::to_string(&response).unwrap();
+        std::println!("{:?}", as_string);
+        self.socket.send_to(as_string.as_bytes(), self.server).expect("Error sending response");
     }
 }
 
