@@ -1,5 +1,5 @@
 [package]
-name = "iotscape-rs"
+name = "iotscape"
 version = "0.1.0"
 edition = "2021"
 authors = ["Gordon Stein"]
@@ -9,11 +9,9 @@ description = "Library for creating IoTScape services for NetsBlox in Rust"
 name = "iotscape"
 crate-type = ["lib"]
 
-
 [dependencies]
 serde = { version = "1.0.152", default-features = false , features = ["derive", "alloc"] }
 serde_json = { version = "1.0.91", default-features = false, features = ["alloc"] }
-
 
 [dev-dependencies]
 tokio = { version = "1.23.0", features = ["full"] }

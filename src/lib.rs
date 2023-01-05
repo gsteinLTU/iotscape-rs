@@ -1,4 +1,5 @@
 #![no_std]
+#![forbid(unsafe_code)]
 
 extern crate alloc;
 
@@ -20,7 +21,7 @@ use serde::{Deserialize, Serialize};
 
 /// A request sent from the NetsBlox server
 #[derive(Debug, Serialize, Deserialize)]
-pub struct IoTScapeRequest {
+pub struct Request {
     pub id: String,
     pub service: String,
     pub device: String,
@@ -30,31 +31,31 @@ pub struct IoTScapeRequest {
 
 /// A response to be sent to the NetsBlox server
 #[derive(Debug, Serialize, Deserialize)]
-pub struct IoTScapeResponse {
+pub struct Response {
     pub id: String,
     pub request: String,
     pub service: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub event: Option<IoTScapeEventResponse>,
+    pub event: Option<EventResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
 /// Data for an event response to be sent to the server
 #[derive(Debug, Serialize, Deserialize)]
-pub struct IoTScapeEventResponse {
+pub struct EventResponse {
     pub r#type: Option<String>,
     pub args: Option<BTreeMap<String, String>>,
 }
 
 /// Definition of an IoTScape service, to be serialized and set to NetsBlox server
 #[derive(Debug, Serialize, Deserialize)]
-pub struct IoTScapeServiceDefinition {
+pub struct ServiceDefinition {
     pub id: String,
-    pub methods: BTreeMap<String, IoTScapeMethodDescription>,
-    pub events: BTreeMap<String, IoTScapeEventDescription>,
+    pub methods: BTreeMap<String, MethodDescription>,
+    pub events: BTreeMap<String, EventDescription>,
     #[serde(rename = "service")]
     pub description: IoTScapeServiceDescription,
 }
@@ -73,15 +74,15 @@ pub struct IoTScapeServiceDescription {
 
 /// Describes a method belonging to an IoTScape service
 #[derive(Debug, Serialize, Deserialize)]
-pub struct IoTScapeMethodDescription {
+pub struct MethodDescription {
     pub documentation: Option<String>,
-    pub params: Vec<IoTScapeMethodParam>,
-    pub returns: IoTScapeMethodReturns,
+    pub params: Vec<MethodParam>,
+    pub returns: MethodReturns,
 }
 
 /// Describes a parameter of a method in an IoTScape service
 #[derive(Debug, Serialize, Deserialize)]
-pub struct IoTScapeMethodParam {
+pub struct MethodParam {
     pub name: String,
     pub documentation: Option<String>,
     pub r#type: String,
@@ -90,47 +91,47 @@ pub struct IoTScapeMethodParam {
 
 /// Describes a return value of a method in an IoTScape service
 #[derive(Debug, Serialize, Deserialize)]
-pub struct IoTScapeMethodReturns {
+pub struct MethodReturns {
     pub documentation: Option<String>,
     pub r#type: Vec<String>,
 }
 
 /// Describes an event type in an IoTScape service
 #[derive(Debug, Serialize, Deserialize)]
-pub struct IoTScapeEventDescription {
+pub struct EventDescription {
     pub params: Vec<String>,
 }
 
 #[cfg(feature = "std")]
 /// An IoTScape service and socket setup to send/receive messages
 pub struct IoTScapeService {
-    pub definition: IoTScapeServiceDefinition,
+    pub definition: ServiceDefinition,
     name: String,
     server: SocketAddr,
     socket: UdpSocket,
     pub next_msg_id: u64,
-    pub rx_queue: VecDeque<IoTScapeRequest>,
-    pub tx_queue: VecDeque<IoTScapeResponse>,
+    pub rx_queue: VecDeque<Request>,
+    pub tx_queue: VecDeque<Response>,
 }
 
 #[cfg(feature = "std")]
 impl IoTScapeService {
-    pub fn new(name: &str, definition: IoTScapeServiceDefinition, server: SocketAddr) -> Self {
+    pub fn new(name: &str, definition: ServiceDefinition, server: SocketAddr) -> Self {
         Self {
             name: name.to_owned(),
             definition,
             socket: UdpSocket::bind("127.0.0.1:0").unwrap(),
             server,
-            rx_queue: VecDeque::<IoTScapeRequest>::new(),
-            tx_queue: VecDeque::<IoTScapeResponse>::new(),
+            rx_queue: VecDeque::<Request>::new(),
+            tx_queue: VecDeque::<Response>::new(),
             next_msg_id: 0,
         }
     }
 
     /// Send the service description to the server
-    pub fn announce(&mut self) -> Result<usize, std::io::Error> {
+    pub fn announce(&mut self) -> std::io::Result<usize> {
         let definition_string =
-            serde_json::to_string(&BTreeMap::<String, &IoTScapeServiceDefinition>::from([(
+            serde_json::to_string(&BTreeMap::from([(
                 self.name.to_owned(),
                 &self.definition,
             )]))
@@ -152,16 +153,16 @@ impl IoTScapeService {
 
         // Get incoming messages
         loop {
-            let mut buf: [u8; 2048] = [0; 2048];
+            let mut buf = [0u8; 2048];
             match self.socket.recv(&mut buf) {
                 Ok(size) => {
-                    let content = buf.split_at(size).0;
+                    let content = &buf[..size];
 
-                    match serde_json::from_slice::<IoTScapeRequest>(content) {
+                    match serde_json::from_slice::<Request>(content) {
                         Ok(msg) => {
                             // Handle heartbeat immediately
                             if msg.function == "heartbeat" {
-                                self.send_response(IoTScapeResponse {
+                                self.send_response(Response {
                                     id: self.definition.id.clone(),
                                     request: msg.id,
                                     service: msg.service,
@@ -192,10 +193,10 @@ impl IoTScapeService {
         }
     }
 
-    /// Create a response to an IoTScapeRequest and enqueue it for sending
+    /// Create a response to an Request and enqueue it for sending
     pub fn enqueue_response_to(
         &mut self,
-        request: IoTScapeRequest,
+        request: Request,
         params: Result<Vec<String>, String>,
     ) {
         let mut response = None;
@@ -210,7 +211,7 @@ impl IoTScapeService {
             }
         }
 
-        self.send_response(IoTScapeResponse {
+        self.send_response(Response {
             id: self.definition.id.clone(),
             request: request.id.to_owned(),
             service: request.service,
@@ -224,12 +225,12 @@ impl IoTScapeService {
 
     // Set an event message to be sent
     pub fn send_event(&mut self, call_id: &str, event_type: &str, args: BTreeMap<String, String>) {
-        self.send_response(IoTScapeResponse {
+        self.send_response(Response {
             id: self.definition.id.clone(),
             request: call_id.to_owned(),
             service: self.name.to_owned(),
             response: None,
-            event: Some(IoTScapeEventResponse {
+            event: Some(EventResponse {
                 r#type: Some(event_type.to_owned()),
                 args: Some(args),
             }),
@@ -237,8 +238,8 @@ impl IoTScapeService {
         });
     }
 
-    /// Sends an IoTScapeResponse to ther server
-    fn send_response(&mut self, response: IoTScapeResponse) {
+    /// Sends an Response to ther server
+    fn send_response(&mut self, response: Response) {
         let as_string = serde_json::to_string(&response).unwrap();
         std::println!("{:?}", as_string);
         self.socket

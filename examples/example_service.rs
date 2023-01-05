@@ -11,7 +11,7 @@ use iotscape::*;
 #[tokio::main]
 async fn main() {
     // Create definition struct
-    let mut definition = IoTScapeServiceDefinition {
+    let mut definition = ServiceDefinition {
         id: "rs1".to_owned(),
         methods: BTreeMap::new(),
         events: BTreeMap::new(),
@@ -28,10 +28,10 @@ async fn main() {
     // Define methods
     definition.methods.insert(
         "helloWorld".to_owned(),
-        IoTScapeMethodDescription {
+        MethodDescription {
             documentation: Some("Says \"Hello, World!\"".to_owned()),
             params: vec![],
-            returns: IoTScapeMethodReturns {
+            returns: MethodReturns {
                 documentation: Some("The text \"Hello, World!\"".to_owned()),
                 r#type: vec!["string".to_owned()],
             },
@@ -39,23 +39,23 @@ async fn main() {
     );
     definition.methods.insert(
         "add".to_owned(),
-        IoTScapeMethodDescription {
+        MethodDescription {
             documentation: Some("Adds two numbers".to_owned()),
             params: vec![
-                IoTScapeMethodParam {
+                MethodParam {
                     name: "a".to_owned(),
                     documentation: Some("First number".to_owned()),
                     r#type: "number".to_owned(),
                     optional: false,
                 },
-                IoTScapeMethodParam {
+                MethodParam {
                     name: "b".to_owned(),
                     documentation: Some("Second number".to_owned()),
                     r#type: "number".to_owned(),
                     optional: false,
                 },
             ],
-            returns: IoTScapeMethodReturns {
+            returns: MethodReturns {
                 documentation: Some("The sum of a and b".to_owned()),
                 r#type: vec!["number".to_owned()],
             },
@@ -63,15 +63,15 @@ async fn main() {
     );
     definition.methods.insert(
         "timer".to_owned(),
-        IoTScapeMethodDescription {
+        MethodDescription {
             documentation: Some("Sends timer event on a delay".to_owned()),
-            params: vec![IoTScapeMethodParam {
+            params: vec![MethodParam {
                 name: "msec".to_owned(),
                 documentation: Some("Amount of time to wait, in ms".to_owned()),
                 r#type: "number".to_owned(),
                 optional: false,
             }],
-            returns: IoTScapeMethodReturns {
+            returns: MethodReturns {
                 documentation: Some("Response after delay".to_owned()),
                 r#type: vec!["event timer".to_owned()],
             },
@@ -80,7 +80,7 @@ async fn main() {
 
     definition.events.insert(
         "timer".to_owned(),
-        IoTScapeEventDescription { params: vec![] },
+        EventDescription { params: vec![] },
     );
 
     let service: Arc<Mutex<IoTScapeService>> = Arc::from(Mutex::new(IoTScapeService::new(
@@ -102,7 +102,7 @@ async fn main() {
         service.lock().unwrap().poll(Some(Duration::from_millis(1)));
 
         // Re-announce to server regularly
-        if Instant::now() - last_announce > announce_period {
+        if last_announce.elapsed() > announce_period {
             service
                 .lock()
                 .unwrap()
@@ -112,8 +112,7 @@ async fn main() {
         }
 
         // Handle requests
-        while service.lock().unwrap().rx_queue.len() > 0 {
-            let next_msg = service.lock().unwrap().rx_queue.pop_front().unwrap();
+        while let Some(next_msg) = service.lock().unwrap().rx_queue.pop_front() {
 
             println!("Handling message {:?}", next_msg);
 
@@ -139,12 +138,8 @@ async fn main() {
                 "timer" => {
                     let ms = next_msg
                         .params
-                        .get(0)
-                        .unwrap_or(&serde_json::Value::Number(
-                            serde_json::Number::from_f64(0.0).unwrap(),
-                        ))
-                        .as_u64()
-                        .unwrap();
+                        .get(0).and_then(|x| x.as_u64())
+                        .unwrap_or(0);
                     tokio::spawn(delayed_event(
                         Arc::clone(&service),
                         ms,
