@@ -3,7 +3,10 @@ name = "iotscape"
 version = "0.1.0"
 edition = "2021"
 authors = ["Gordon Stein"]
+license = "MIT OR Apache-2.0"
 description = "Library for creating IoTScape services for NetsBlox in Rust"
+homepage = "https://github.com/gsteinLTU/iotscape-rs"
+repository = "https://github.com/gsteinLTU/iotscape-rs"
 
 [lib]
 name = "iotscape"
