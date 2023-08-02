@@ -1,6 +1,5 @@
 use std::{
     collections::BTreeMap,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
     vec,
@@ -82,11 +81,12 @@ async fn main() {
         "timer".to_owned(),
         EventDescription { params: vec![] },
     );
-
+    
+    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1975".to_string());
     let service: Arc<Mutex<IoTScapeService>> = Arc::from(Mutex::new(IoTScapeService::new(
         "ExampleService",
         definition,
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 1975),
+        server.parse().unwrap(),
     )));
 
     service
@@ -112,7 +112,12 @@ async fn main() {
         }
 
         // Handle requests
-        while let Some(next_msg) = service.lock().unwrap().rx_queue.pop_front() {
+        loop {
+            if service.lock().unwrap().rx_queue.len() == 0 {
+                break;
+            }
+
+            let next_msg = service.lock().unwrap().rx_queue.pop_front().unwrap();
 
             println!("Handling message {:?}", next_msg);
 
@@ -130,6 +135,7 @@ async fn main() {
                         .iter()
                         .map(|v| v.as_f64().unwrap_or_default())
                         .sum();
+                    
                     service
                         .lock()
                         .unwrap()
@@ -148,7 +154,9 @@ async fn main() {
                         BTreeMap::new(),
                     ));
                 }
-                _ => {}
+                t => {
+                    println!("Unrecognized function {}", t);
+                }
             }
         }
     }

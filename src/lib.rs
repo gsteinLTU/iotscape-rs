@@ -117,10 +117,15 @@ pub struct IoTScapeService {
 #[cfg(feature = "std")]
 impl IoTScapeService {
     pub fn new(name: &str, definition: ServiceDefinition, server: SocketAddr) -> Self {
+        let addrs = [
+            SocketAddr::from(([0, 0, 0, 0], 0)),
+            SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 0], 0)),
+        ];
+        let socket = UdpSocket::bind(&addrs[..]).unwrap();
         Self {
             name: name.to_owned(),
             definition,
-            socket: UdpSocket::bind("127.0.0.1:0").unwrap(),
+            socket,
             server,
             rx_queue: VecDeque::<Request>::new(),
             tx_queue: VecDeque::<Response>::new(),
