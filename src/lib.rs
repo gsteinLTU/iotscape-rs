@@ -17,6 +17,7 @@ use alloc::{
     string::String,
     vec::Vec,
 };
+use log::{error, trace};
 use serde::{Deserialize, Serialize};
 
 /// A request sent from the NetsBlox server
@@ -143,6 +144,7 @@ impl IoTScapeService {
             .unwrap();
 
         // Send to server
+        trace!("Announcing {:?}", definition_string);
         self.socket
             .send_to(definition_string.as_bytes(), self.server)
     }
@@ -181,7 +183,7 @@ impl IoTScapeService {
                             }
                         }
                         Err(e) => {
-                            std::println!("Error parsing request: {}", e);
+                            error!("Error parsing request: {}", e);
                         }
                     }
                 }
@@ -228,7 +230,7 @@ impl IoTScapeService {
         self.next_msg_id += 1;
     }
 
-    // Set an event message to be sent
+    /// Set an event message to be sent
     pub fn send_event(&mut self, call_id: &str, event_type: &str, args: BTreeMap<String, String>) {
         self.send_response(Response {
             id: self.definition.id.clone(),
@@ -246,7 +248,7 @@ impl IoTScapeService {
     /// Sends an Response to ther server
     fn send_response(&mut self, response: Response) {
         let as_string = serde_json::to_string(&response).unwrap();
-        std::println!("{:?}", as_string);
+        trace!("Sending response {:?}", as_string);
         self.socket
             .send_to(as_string.as_bytes(), self.server)
             .expect("Error sending response");

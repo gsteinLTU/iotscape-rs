@@ -1,6 +1,6 @@
 [package]
 name = "iotscape"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Gordon Stein"]
 license = "MIT OR Apache-2.0"
@@ -13,6 +13,7 @@ name = "iotscape"
 crate-type = ["lib"]
 
 [dependencies]
+log = "0.4.20"
 serde = { version = "1.0.152", default-features = false , features = ["derive", "alloc"] }
 serde_json = { version = "1.0.91", default-features = false, features = ["alloc"] }
 
