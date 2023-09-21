@@ -296,7 +296,7 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
 
         // Get incoming messages
         loop {
-            let mut buf = [0u8; 2048];
+            let mut buf = [0u8; 65_535];
             match self.socket.recv(&mut buf) {
                 Ok(size) => {
                     let content = &buf[..size];
