@@ -76,6 +76,17 @@ async fn main() {
             },
         },
     );
+    definition.methods.insert(
+        "returnComplex".to_owned(),
+        MethodDescription {
+            documentation: Some("Complex response to method".to_owned()),
+            params: vec![],
+            returns: MethodReturns {
+                documentation: Some("Complex object".to_owned()),
+                r#type: vec!["string".to_owned(), "string".to_owned()],
+            },
+        },
+    );
 
     definition.events.insert(
         "timer".to_owned(),
@@ -127,8 +138,8 @@ async fn main() {
                     service
                         .lock()
                         .unwrap()
-                        .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned()]));
-                }
+                        .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()]));
+                },
                 "add" => {
                     let result: f64 = next_msg
                         .params
@@ -139,8 +150,8 @@ async fn main() {
                     service
                         .lock()
                         .unwrap()
-                        .enqueue_response_to(next_msg, Ok(vec![result.to_string()]));
-                }
+                        .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()]));
+                },
                 "timer" => {
                     let ms = next_msg
                         .params
@@ -153,6 +164,12 @@ async fn main() {
                         "timer",
                         BTreeMap::new(),
                     ));
+                },
+                "returnComplex" => {
+                    service
+                        .lock()
+                        .unwrap()
+                        .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()]));                    
                 }
                 t => {
                     println!("Unrecognized function {}", t);

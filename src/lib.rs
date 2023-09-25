@@ -28,6 +28,7 @@ use alloc::{
 
 use log::{error, trace};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// A request sent from the NetsBlox server
 #[derive(Debug, Serialize, Deserialize)]
@@ -46,7 +47,7 @@ pub struct Response {
     pub request: String,
     pub service: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub response: Option<Vec<String>>,
+    pub response: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event: Option<EventResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -340,7 +341,7 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
     pub fn enqueue_response_to(
         &mut self,
         request: Request,
-        params: Result<Vec<String>, String>,
+        params: Result<Vec<Value>, String>,
     ) {
         let mut response = None;
         let mut error = None;

@@ -1,6 +1,6 @@
 [package]
 name = "iotscape"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["Gordon Stein"]
 license = "MIT OR Apache-2.0"
@@ -15,11 +15,11 @@ crate-type = ["lib"]
 [dependencies]
 log = "0.4.20"
 no-std-net = "0.6.0"
-serde = { version = "1.0.152", default-features = false , features = ["derive", "alloc"] }
-serde_json = { version = "1.0.91", default-features = false, features = ["alloc"] }
+serde = { version = "1.0", default-features = false , features = ["derive", "alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
-tokio = { version = "1.23.0", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
 
 [features]
 std = []
