@@ -125,7 +125,16 @@ pub trait SocketTrait : Sized {
 #[cfg(feature = "std")]
 impl SocketTrait for UdpSocket {
     fn bind(addrs: &[SocketAddr]) -> Result<Self, String> {
-        UdpSocket::bind(addrs.iter().map(|s| s.to_string().parse().unwrap()).collect::<Vec<std::net::SocketAddr>>().as_slice()).map_err(|e| format!("{}", e))
+        let socket = UdpSocket::bind(addrs.iter().map(|s| s.to_string().parse().unwrap()).collect::<Vec<std::net::SocketAddr>>().as_slice());
+        if socket.is_err() {
+            return socket.map_err(|e| format!("{}", e))
+        } else {
+            let socket = socket.unwrap();
+            if let Err(e) = socket.set_nonblocking(true) {
+                return Err(format!("{}", e));
+            }
+            return Ok(socket);
+        }
     }
 
     fn send_to(&self, buf: &[u8], addr: SocketAddr) -> Result<usize, String> {
