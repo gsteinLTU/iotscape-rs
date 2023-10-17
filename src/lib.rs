@@ -10,6 +10,7 @@ use core::time::Duration;
 
 #[cfg(feature = "std")]
 use std::net::SocketAddr;
+use std::println;
 
 #[cfg(not(feature = "std"))]
 use no_std_net::SocketAddr;
@@ -251,6 +252,7 @@ pub struct IoTScapeService<SocketType: SocketTrait> {
 #[cfg(feature = "std")]
 pub struct IoTScapeService<SocketType: SocketTrait = UdpSocket> {
     pub definition: ServiceDefinition,
+    cached_definition: Option<String>,
     name: String,
     server: SocketAddr,
     socket: SocketType,
@@ -272,6 +274,7 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
         Self {
             name: name.to_owned(),
             definition,
+            cached_definition: None,
             socket,
             server,
             rx_queue: VecDeque::<Request>::new(),
@@ -282,12 +285,17 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
 
     /// Send the service description to the server
     pub fn announce(&mut self) -> Result<usize, String> {
-        let definition_string =
-            serde_json::to_string(&BTreeMap::from([(
+        // Serialize definition if not already cached
+        let mut definition_string = self.cached_definition.as_ref();
+        if definition_string.is_none() {
+            self.cached_definition = Some(serde_json::to_string(&BTreeMap::from([(
                 self.name.to_owned(),
                 &self.definition,
             )]))
-            .unwrap();
+            .unwrap());
+            definition_string = self.cached_definition.as_ref();
+        }
+        let definition_string = definition_string.unwrap();
 
         // Send to server
         trace!("Announcing {:?}", definition_string);
