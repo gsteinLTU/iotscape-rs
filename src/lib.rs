@@ -10,7 +10,6 @@ use core::time::Duration;
 
 #[cfg(feature = "std")]
 use std::net::SocketAddr;
-use std::println;
 
 #[cfg(not(feature = "std"))]
 use no_std_net::SocketAddr;
@@ -241,7 +240,7 @@ impl SocketTrait for NullSocket {
 #[cfg(not(feature = "std"))]
 pub struct IoTScapeService<SocketType: SocketTrait> {
     pub definition: ServiceDefinition,
-    name: String,
+    pub name: String,
     server: SocketAddr,
     socket: SocketType,
     pub next_msg_id: u64,
@@ -253,7 +252,7 @@ pub struct IoTScapeService<SocketType: SocketTrait> {
 pub struct IoTScapeService<SocketType: SocketTrait = UdpSocket> {
     pub definition: ServiceDefinition,
     cached_definition: Option<String>,
-    name: String,
+    pub name: String,
     server: SocketAddr,
     socket: SocketType,
     pub next_msg_id: u64,
