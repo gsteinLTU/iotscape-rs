@@ -138,7 +138,7 @@ async fn main() {
                     service
                         .lock()
                         .unwrap()
-                        .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()]));
+                        .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).unwrap();
                 },
                 "add" => {
                     let result: f64 = next_msg
@@ -150,7 +150,7 @@ async fn main() {
                     service
                         .lock()
                         .unwrap()
-                        .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()]));
+                        .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).unwrap();
                 },
                 "timer" => {
                     let ms = next_msg
@@ -169,7 +169,7 @@ async fn main() {
                     service
                         .lock()
                         .unwrap()
-                        .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()]));                    
+                        .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).unwrap();                    
                 }
                 t => {
                     println!("Unrecognized function {}", t);
@@ -190,5 +190,5 @@ async fn delayed_event(
     service
         .lock()
         .unwrap()
-        .send_event(call_id.as_str(), event_type, args);
+        .send_event(call_id.as_str(), event_type, args).unwrap();
 }

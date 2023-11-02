@@ -329,7 +329,7 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
                                     response: Some(alloc::vec![]),
                                     event: None,
                                     error: None,
-                                });
+                                }).unwrap();
                                 self.next_msg_id += 1;
                             } else {
                                 self.rx_queue.push_back(msg);
@@ -349,7 +349,9 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
         // Send queued messages
         while !self.tx_queue.is_empty() {
             let next_msg = self.tx_queue.pop_front().unwrap();
-            self.send_response(next_msg);
+            if let Err(e) = self.send_response(next_msg) {
+                error!("Error sending response: {}", e);
+            }
         }
     }
 
@@ -358,7 +360,7 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
         &mut self,
         request: Request,
         params: Result<Vec<Value>, String>,
-    ) {
+    ) -> Result<usize, String> {
         let mut response = None;
         let mut error = None;
 
@@ -378,13 +380,11 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
             response,
             event: None,
             error,
-        });
-
-        self.next_msg_id += 1;
+        }).and_then(|r| { self.next_msg_id += 1; Ok(r) })
     }
 
     /// Set an event message to be sent
-    pub fn send_event(&mut self, call_id: &str, event_type: &str, args: BTreeMap<String, String>) {
+    pub fn send_event(&mut self, call_id: &str, event_type: &str, args: BTreeMap<String, String>) -> Result<usize, String> {
         self.send_response(Response {
             id: self.definition.id.clone(),
             request: call_id.to_owned(),
@@ -395,15 +395,14 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
                 args: Some(args),
             }),
             error: None,
-        });
+        })
     }
 
     /// Sends an Response to ther server
-    fn send_response(&mut self, response: Response) {
+    fn send_response(&mut self, response: Response) -> Result<usize, String>{
         let as_string = serde_json::to_string(&response).unwrap();
         trace!("Sending response {:?}", as_string);
         self.socket
             .send_to(as_string.as_bytes(), self.server)
-            .expect("Error sending response");
     }
 }
