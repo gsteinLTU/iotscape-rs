@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// A request sent from the NetsBlox server
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Request {
     pub id: String,
     pub service: String,
@@ -41,7 +41,7 @@ pub struct Request {
 }
 
 /// A response to be sent to the NetsBlox server
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Response {
     pub id: String,
     pub request: String,
@@ -55,14 +55,14 @@ pub struct Response {
 }
 
 /// Data for an event response to be sent to the server
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EventResponse {
     pub r#type: Option<String>,
     pub args: Option<BTreeMap<String, String>>,
 }
 
 /// Definition of an IoTScape service, to be serialized and set to NetsBlox server
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ServiceDefinition {
     pub id: String,
     pub methods: BTreeMap<String, MethodDescription>,
@@ -73,7 +73,7 @@ pub struct ServiceDefinition {
 
 /// Service meta-data for an IoTScape Service
 #[allow(non_snake_case)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IoTScapeServiceDescription {
     pub description: Option<String>,
     pub externalDocumentation: Option<String>,
@@ -84,7 +84,7 @@ pub struct IoTScapeServiceDescription {
 }
 
 /// Describes a method belonging to an IoTScape service
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MethodDescription {
     pub documentation: Option<String>,
     pub params: Vec<MethodParam>,
@@ -92,7 +92,7 @@ pub struct MethodDescription {
 }
 
 /// Describes a parameter of a method in an IoTScape service
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MethodParam {
     pub name: String,
     pub documentation: Option<String>,
@@ -101,14 +101,14 @@ pub struct MethodParam {
 }
 
 /// Describes a return value of a method in an IoTScape service
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MethodReturns {
     pub documentation: Option<String>,
     pub r#type: Vec<String>,
 }
 
 /// Describes an event type in an IoTScape service
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EventDescription {
     pub params: Vec<String>,
 }
