@@ -92,7 +92,7 @@ async fn main() {
         "timer".to_owned(),
         EventDescription { params: vec![] },
     );
-    
+
     //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1975".to_string());
     let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
     let service: Arc<Mutex<IoTScapeService>> = Arc::from(Mutex::new(IoTScapeService::new(
@@ -161,15 +161,19 @@ async fn main() {
                     "timer" => {
                         let ms = next_msg
                             .params
-                            .get(0).and_then(|x| x.as_u64())
+                            .get(0).and_then(|x| u64::from_str_radix(x.as_str().unwrap(), 10).ok())
                             .unwrap_or(0);
                         tokio::spawn(delayed_event(
                             Arc::clone(&service),
                             ms,
-                            next_msg.id,
+                            next_msg.id.clone(),
                             "timer",
                             BTreeMap::new(),
                         ));
+                        service
+                            .lock()
+                            .unwrap()
+                            .enqueue_response_to(next_msg, Ok(vec![])).unwrap();      
                     },
                     "returnComplex" => {
                         service
@@ -241,6 +245,7 @@ async fn delayed_event(
     args: BTreeMap<String, String>,
 ) {
     tokio::time::sleep(Duration::from_millis(delay)).await;
+    println!("Sending event {} with args {:?} after {} ms", event_type, args, delay);
     service
         .lock()
         .unwrap()
