@@ -93,7 +93,8 @@ async fn main() {
         EventDescription { params: vec![] },
     );
     
-    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1975".to_string());
+    //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1975".to_string());
+    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
     let service: Arc<Mutex<IoTScapeService>> = Arc::from(Mutex::new(IoTScapeService::new(
         "ExampleService",
         definition,
@@ -107,73 +108,126 @@ async fn main() {
         .expect("Could not announce to server");
 
     let mut last_announce = Instant::now();
-    let announce_period = Duration::from_secs(60);
+    let announce_period = Duration::from_secs(30);
 
-    loop {
-        service.lock().unwrap().poll(Some(Duration::from_millis(1)));
+    let service_clone = Arc::clone(&service);
 
-        // Re-announce to server regularly
-        if last_announce.elapsed() > announce_period {
-            service
-                .lock()
-                .unwrap()
-                .announce()
-                .expect("Could not announce to server");
-            last_announce = Instant::now();
-        }
-
-        // Handle requests
+    tokio::task::spawn(async move {
+        let service = service_clone;
         loop {
-            if service.lock().unwrap().rx_queue.len() == 0 {
-                break;
+            tokio::time::sleep(Duration::from_millis(1)).await;
+            service.lock().unwrap().poll(Some(Duration::from_millis(1)));
+
+            // Re-announce to server regularly
+            if last_announce.elapsed() > announce_period {
+                service
+                    .lock()
+                    .unwrap()
+                    .announce()
+                    .expect("Could not announce to server");
+                last_announce = Instant::now();
             }
 
-            let next_msg = service.lock().unwrap().rx_queue.pop_front().unwrap();
-
-            println!("Handling message {:?}", next_msg);
-
-            // Request handlers
-            match next_msg.function.as_str() {
-                "helloWorld" => {
-                    service
-                        .lock()
-                        .unwrap()
-                        .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).unwrap();
-                },
-                "add" => {
-                    let result: f64 = next_msg
-                        .params
-                        .iter()
-                        .map(|v| v.as_f64().unwrap_or_default())
-                        .sum();
-                    
-                    service
-                        .lock()
-                        .unwrap()
-                        .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).unwrap();
-                },
-                "timer" => {
-                    let ms = next_msg
-                        .params
-                        .get(0).and_then(|x| x.as_u64())
-                        .unwrap_or(0);
-                    tokio::spawn(delayed_event(
-                        Arc::clone(&service),
-                        ms,
-                        next_msg.id,
-                        "timer",
-                        BTreeMap::new(),
-                    ));
-                },
-                "returnComplex" => {
-                    service
-                        .lock()
-                        .unwrap()
-                        .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).unwrap();                    
+            // Handle requests
+            loop {
+                if service.lock().unwrap().rx_queue.len() == 0 {
+                    break;
                 }
-                t => {
-                    println!("Unrecognized function {}", t);
+
+                let next_msg = service.lock().unwrap().rx_queue.pop_front().unwrap();
+
+                println!("Handling message {:?}", next_msg);
+
+                // Request handlers
+                match next_msg.function.as_str() {
+                    "helloWorld" => {
+                        service
+                            .lock()
+                            .unwrap()
+                            .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).unwrap();
+                    },
+                    "add" => {
+                        let result: f64 = next_msg
+                            .params
+                            .iter()
+                            .map(|v| v.as_f64().unwrap_or_default())
+                            .sum();
+                        
+                        service
+                            .lock()
+                            .unwrap()
+                            .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).unwrap();
+                    },
+                    "timer" => {
+                        let ms = next_msg
+                            .params
+                            .get(0).and_then(|x| x.as_u64())
+                            .unwrap_or(0);
+                        tokio::spawn(delayed_event(
+                            Arc::clone(&service),
+                            ms,
+                            next_msg.id,
+                            "timer",
+                            BTreeMap::new(),
+                        ));
+                    },
+                    "returnComplex" => {
+                        service
+                            .lock()
+                            .unwrap()
+                            .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).unwrap();                    
+                    },
+                    "_requestedKey" => {
+                        println!("Received key: {:?}", next_msg.params);
+                        service
+                            .lock()
+                            .unwrap()
+                            .enqueue_response_to(next_msg, Ok(vec![])).unwrap();      
+                    },
+                    t => {
+                        println!("Unrecognized function {}", t);
+                    }
                 }
+            }
+        }
+    });
+
+    loop {
+        tokio::time::sleep(Duration::from_millis(1)).await;
+
+        // Get console input
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).unwrap();
+
+        // Parse input
+        let mut parts = input.split_whitespace();
+        let command = parts.next().unwrap_or_default();
+        let args = parts.collect::<Vec<&str>>();
+        
+        match command {
+            "getkey" => {
+                let mut s = service.lock().unwrap();
+                let next_msg_id = s.next_msg_id.to_string();
+                s.send_event(&next_msg_id, "_requestKey", BTreeMap::default()).unwrap();
+                s.next_msg_id += 1;                
+            },
+            "reset" => {
+                let mut s = service.lock().unwrap();
+                let next_msg_id = s.next_msg_id.to_string();
+                s.send_event(&next_msg_id, "_reset", BTreeMap::default()).unwrap();
+                s.next_msg_id += 1;
+            },
+            "help" => {
+                println!("Commands:");
+                println!("  getkey - request a key from the server");
+                println!("  reset - reset the encryption settings on the server");
+                println!("  quit - exit the program");
+            },
+            "quit" => {
+                break;
+            },
+            _ => {
+                println!("Unrecognized command {}", command);
             }
         }
     }
