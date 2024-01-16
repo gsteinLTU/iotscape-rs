@@ -41,6 +41,8 @@ pub struct Request {
     pub device: String,
     pub function: String,
     pub params: Vec<serde_json::Value>,
+    #[serde(rename = "clientId")]
+    pub client_id: Option<String>,
 }
 
 /// A response to be sent to the NetsBlox server
