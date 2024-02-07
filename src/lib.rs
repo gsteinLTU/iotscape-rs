@@ -10,17 +10,23 @@ extern crate std;
 
 use core::time::Duration;
 
+#[cfg(feature = "tokio")]
+use core::sync::atomic::AtomicU64;
+
 use alloc::{
-    borrow::ToOwned,
-    collections::{BTreeMap, VecDeque},
-    string::String,
-    vec::Vec,
+    borrow::ToOwned, collections::{BTreeMap, VecDeque}, string::String, vec::Vec
 };
+
+#[cfg(feature = "tokio")]
+use futures::FutureExt;
 
 use log::{error, trace};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use socket::SocketTrait;
+
+#[cfg(feature = "tokio")]
+use socket::SocketTraitAsync;
 
 #[cfg(feature = "std")]
 use std::net::SocketAddr;
@@ -28,10 +34,18 @@ use std::net::SocketAddr;
 #[cfg(not(feature = "std"))]
 use no_std_net::SocketAddr;
 
-
 #[cfg(feature = "std")]
-use std::net::UdpSocket;
+use std::net::UdpSocket as StdUdpSocket;
 
+#[cfg(feature = "tokio")]
+use tokio::net::UdpSocket as TokioUdpSocket;
+#[cfg(feature = "tokio")]
+use alloc::sync::Arc;
+
+#[cfg(all(feature = "tokio", not(feature = "no_deadlocks")))]
+use std::sync::Mutex;
+#[cfg(feature = "no_deadlocks")]
+use no_deadlocks::Mutex;
 
 /// A request sent from the NetsBlox server
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -131,7 +145,7 @@ pub struct IoTScapeService<SocketType: SocketTrait> {
 }
 
 #[cfg(feature = "std")]
-pub struct IoTScapeService<SocketType: SocketTrait = UdpSocket> {
+pub struct IoTScapeService<SocketType: SocketTrait = StdUdpSocket> {
     pub definition: ServiceDefinition,
     cached_definition: Option<String>,
     pub name: String,
@@ -143,7 +157,7 @@ pub struct IoTScapeService<SocketType: SocketTrait = UdpSocket> {
 }
 
 #[cfg(feature = "std")]
-pub type IoTScapeServiceUdp = IoTScapeService<UdpSocket>;
+pub type IoTScapeServiceUdp = IoTScapeService<StdUdpSocket>;
 
 impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
     pub fn new(name: &str, definition: ServiceDefinition, server: SocketAddr) -> Self {
@@ -286,5 +300,156 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
         trace!("Sending response {:?}", as_string);
         self.socket
             .send_to(as_string.as_bytes(), self.server)
+    }
+}
+
+
+#[cfg(feature = "tokio")]
+pub struct IoTScapeServiceAsync<SocketType: SocketTraitAsync = TokioUdpSocket> {
+    pub definition: ServiceDefinition,
+    cached_definition: String,
+    pub name: String,
+    server: SocketAddr,
+    socket: Arc<SocketType>,
+    pub next_msg_id: AtomicU64,
+    pub rx_queue: Arc<Mutex<VecDeque<Request>>>,
+    pub tx_queue: Arc<Mutex<VecDeque<Response>>>,
+}
+
+#[cfg(feature = "tokio")]
+pub type IoTScapeServiceAsyncUdp = IoTScapeServiceAsync<TokioUdpSocket>;
+
+#[cfg(feature = "tokio")]
+impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
+    pub async fn new(name: &str, definition: ServiceDefinition, server: SocketAddr) -> Self {
+        let addrs = [
+            SocketAddr::from(([0, 0, 0, 0], 0)),
+            SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 0], 0)),
+        ];
+        let socket = Arc::new(SocketType::bind(&addrs[0]).await.unwrap());
+        
+        // Serialize definition now
+        let cached_definition = serde_json::to_string(&BTreeMap::from([(
+            name.to_owned(),
+            &definition,
+        )])).unwrap();
+
+        Self {
+            name: name.to_owned(),
+            definition,
+            cached_definition,
+            socket,
+            server,
+            rx_queue: Arc::new(Mutex::new(VecDeque::<Request>::new())),
+            tx_queue: Arc::new(Mutex::new(VecDeque::<Response>::new())),
+            next_msg_id: AtomicU64::new(0),
+        }
+    }
+
+    /// Send the service description to the server
+    pub async fn announce(&self) -> Result<usize, std::io::Error> {
+        // Send to server
+        trace!("Announcing {:?}", self.cached_definition);
+        self.socket
+            .send_to(self.cached_definition.as_bytes(), self.server).now_or_never().expect("Failed to send definition")
+    }
+
+    /// Handle rx/tx
+    pub async fn poll(&self) {
+        // Get incoming messages
+        loop {
+            let mut buf = [0u8; 65_535];
+            
+            match self.socket.recv(&mut buf).now_or_never().unwrap_or(Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to receive message"))) {
+                Ok(size) => {
+                    let content = &buf[..size];
+
+                    match serde_json::from_slice::<Request>(content) {
+                        Ok(msg) => {
+                            // Handle heartbeat immediately
+                            if msg.function == "heartbeat" {
+                                self.send_response(Response {
+                                    id: self.definition.id.clone(),
+                                    request: msg.id,
+                                    service: msg.service,
+                                    response: Some(alloc::vec![]),
+                                    event: None,
+                                    error: None,
+                                }).await.unwrap();
+                            } else {
+                                self.rx_queue.lock().unwrap().push_back(msg);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Error parsing request: {}", e);
+                        }
+                    }
+                }
+                Err(_) => {
+                    break;
+                }
+            }
+        }
+
+        // Send queued messages
+        while !self.tx_queue.lock().unwrap().is_empty() {
+            let next_msg = self.tx_queue.lock().unwrap().pop_front().unwrap();
+            if let Err(e) = self.send_response(next_msg).now_or_never().unwrap_or(Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to send response"))) {
+                error!("Error sending response: {}", e);
+            }
+        }
+    }
+
+    /// Create a response to an Request and enqueue it for sending
+    pub async fn enqueue_response_to(
+        &self,
+        request: Request,
+        params: Result<Vec<Value>, String>,
+    ) -> Result<usize, std::io::Error> {
+        let mut response = None;
+        let mut error = None;
+
+        match params {
+            Ok(p) => {
+                response = Some(p);
+            }
+            Err(e) => {
+                error = Some(e);
+            }
+        }
+
+        self.send_response(Response {
+            id: self.definition.id.clone(),
+            request: request.id.to_owned(),
+            service: request.service,
+            response,
+            event: None,
+            error,
+        }).now_or_never().unwrap_or(Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to send response")))
+    }
+
+    /// Set an event message to be sent
+    pub async fn send_event(&self, call_id: &str, event_type: &str, args: BTreeMap<String, String>) -> Result<usize, std::io::Error> {
+        self.send_response(Response {
+            id: self.definition.id.clone(),
+            request: call_id.to_owned(),
+            service: self.name.to_owned(),
+            response: None,
+            event: Some(EventResponse {
+                r#type: Some(event_type.to_owned()),
+                args: Some(args),
+            }),
+            error: None,
+        }).now_or_never().unwrap_or(Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to send event")))
+    }
+
+    /// Sends an Response to ther server
+    async fn send_response(&self, response: Response) -> Result<usize, std::io::Error>{
+        let as_string = serde_json::to_string(&response).unwrap();
+        trace!("Sending response {:?}", as_string);
+        let r = self.socket
+            .send_to(as_string.as_bytes(), self.server).await;
+        self.next_msg_id.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        r
     }
 }

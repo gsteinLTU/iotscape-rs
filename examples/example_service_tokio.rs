@@ -1,12 +1,19 @@
+#[cfg(feature = "tokio")]
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{Duration, Instant},
     vec,
 };
 
+#[cfg(feature = "tokio")]
+use futures::FutureExt;
+#[cfg(feature = "tokio")]
 use iotscape::*;
+#[cfg(feature = "tokio")]
+use log::info;
 
+#[cfg(feature = "tokio")]
 #[tokio::main]
 async fn main() {
     // Create definition struct
@@ -95,56 +102,46 @@ async fn main() {
 
     let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string());
     //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
-    let service: Arc<Mutex<IoTScapeService>> = Arc::from(Mutex::new(IoTScapeService::new(
+    let service: Arc<IoTScapeServiceAsync> = Arc::from(IoTScapeServiceAsync::new(
         "ExampleService",
         definition,
         server.parse().unwrap(),
-    )));
+    ).await);
 
     service
-        .lock()
-        .unwrap()
         .announce()
+        .await
         .expect("Could not announce to server");
 
     let mut last_announce = Instant::now();
     let announce_period = Duration::from_secs(30);
 
-    let service_clone = Arc::clone(&service);
+    let service_clone = service.clone();
 
     tokio::task::spawn(async move {
         let service = service_clone;
         loop {
-            tokio::time::sleep(Duration::from_millis(1)).await;
-            service.lock().unwrap().poll(Some(Duration::from_millis(1)));
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            service.poll().await;
 
             // Re-announce to server regularly
             if last_announce.elapsed() > announce_period {
                 service
-                    .lock()
-                    .unwrap()
                     .announce()
+                    .await
                     .expect("Could not announce to server");
                 last_announce = Instant::now();
             }
 
             // Handle requests
-            loop {
-                if service.lock().unwrap().rx_queue.len() == 0 {
-                    break;
-                }
-
-                let next_msg = service.lock().unwrap().rx_queue.pop_front().unwrap();
-
+            while let Some(next_msg) = service.rx_queue.lock().unwrap().pop_front() {
                 println!("Handling message {:?}", next_msg);
 
                 // Request handlers
                 match next_msg.function.as_str() {
                     "helloWorld" => {
                         service
-                            .lock()
-                            .unwrap()
-                            .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).unwrap();
+                            .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).now_or_never().unwrap().expect("Could not enqueue response");
                     },
                     "add" => {
                         let result: f64 = next_msg
@@ -154,39 +151,32 @@ async fn main() {
                             .sum();
                         
                         service
-                            .lock()
-                            .unwrap()
-                            .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).unwrap();
+                            .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).now_or_never().unwrap().expect("Could not enqueue response");
                     },
                     "timer" => {
+                        info!("Received timer request {:?}", next_msg);
                         let ms = next_msg
                             .params
                             .get(0).and_then(|x| u64::from_str_radix(&x.to_string(), 10).ok())
                             .unwrap_or(0);
                         tokio::spawn(delayed_event(
-                            Arc::clone(&service),
+                            service.clone(),
                             ms,
                             next_msg.id.clone(),
                             "timer",
                             BTreeMap::new(),
                         ));
                         service
-                            .lock()
-                            .unwrap()
-                            .enqueue_response_to(next_msg, Ok(vec![])).unwrap();      
+                            .enqueue_response_to(next_msg, Ok(vec![])).now_or_never().unwrap().expect("Could not enqueue response");    
                     },
                     "returnComplex" => {
                         service
-                            .lock()
-                            .unwrap()
-                            .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).unwrap();                    
+                            .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).now_or_never().unwrap().expect("Could not enqueue response");                  
                     },
                     "_requestedKey" => {
                         println!("Received key: {:?}", next_msg.params);
                         service
-                            .lock()
-                            .unwrap()
-                            .enqueue_response_to(next_msg, Ok(vec![])).unwrap();      
+                            .enqueue_response_to(next_msg, Ok(vec![])).now_or_never().unwrap().expect("Could not enqueue response");      
                     },
                     t => {
                         println!("Unrecognized function {}", t);
@@ -210,19 +200,19 @@ async fn main() {
         
         match command {
             "getkey" => {
-                let mut s = service.lock().unwrap();
-                let next_msg_id = s.next_msg_id.to_string();
-                s.send_event(&next_msg_id, "_requestKey", BTreeMap::default()).unwrap();
-                s.next_msg_id += 1;                
+                let next_msg_id = service.next_msg_id.load(std::sync::atomic::Ordering::Relaxed).to_string();
+                service.send_event(&next_msg_id, "_requestKey", BTreeMap::default()).now_or_never().unwrap().expect("Could not send event");
             },
             "reset" => {
-                let mut s = service.lock().unwrap();
-                let next_msg_id = s.next_msg_id.to_string();
-                s.send_event(&next_msg_id, "_reset", BTreeMap::default()).unwrap();
-                s.next_msg_id += 1;
+                let next_msg_id = service.next_msg_id.load(std::sync::atomic::Ordering::Relaxed).to_string();
+                service.send_event(&next_msg_id, "_reset", BTreeMap::default()).now_or_never().unwrap().expect("Could not send event");
+            },
+            "announce" => {
+                service.announce().now_or_never().unwrap().expect("Could not announce to server");
             },
             "help" => {
                 println!("Commands:");
+                println!("  announce - send a new announce to the server");
                 println!("  getkey - request a key from the server");
                 println!("  reset - reset the encryption settings on the server");
                 println!("  quit - exit the program");
@@ -237,8 +227,9 @@ async fn main() {
     }
 }
 
+#[cfg(feature = "tokio")]
 async fn delayed_event(
-    service: Arc<Mutex<IoTScapeService>>,
+    service: Arc<IoTScapeServiceAsyncUdp>,
     delay: u64,
     call_id: String,
     event_type: &str,
@@ -246,8 +237,11 @@ async fn delayed_event(
 ) {
     tokio::time::sleep(Duration::from_millis(delay)).await;
     println!("Sending event {} with args {:?} after {} ms", event_type, args, delay);
-    service
-        .lock()
-        .unwrap()
-        .send_event(call_id.as_str(), event_type, args).unwrap();
+    service.clone()
+        .send_event(call_id.as_str(), event_type, args).now_or_never().unwrap().expect("Could not send event");
+}
+
+#[cfg(not(feature = "tokio"))]
+fn main() {
+    panic!("This example requires the 'tokio' feature to be enabled.");
 }
