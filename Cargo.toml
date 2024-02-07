@@ -29,4 +29,4 @@ std = []
 tokio = ["std", "dep:tokio", "dep:futures"]
 # Use the `no_deadlocks` feature to enable the `no_deadlocks` crate for detecting deadlocks
 no_deadlocks = ["std", "dep:no_deadlocks"]
-default = ["std", "tokio", "no_deadlocks"]
+default = ["std"]
