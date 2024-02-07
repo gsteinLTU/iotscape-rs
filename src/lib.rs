@@ -351,7 +351,7 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
         // Send to server
         trace!("Announcing {:?}", self.cached_definition);
         self.socket
-            .send_to(self.cached_definition.as_bytes(), self.server).now_or_never().expect("Failed to send definition")
+            .send_to(self.cached_definition.as_bytes(), self.server).await
     }
 
     /// Handle rx/tx
@@ -394,7 +394,7 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
         // Send queued messages
         while !self.tx_queue.lock().unwrap().is_empty() {
             let next_msg = self.tx_queue.lock().unwrap().pop_front().unwrap();
-            if let Err(e) = self.send_response(next_msg).now_or_never().unwrap_or(Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to send response"))) {
+            if let Err(e) = self.send_response(next_msg).await {
                 error!("Error sending response: {}", e);
             }
         }
@@ -425,7 +425,7 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
             response,
             event: None,
             error,
-        }).now_or_never().unwrap_or(Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to send response")))
+        }).await
     }
 
     /// Set an event message to be sent
@@ -440,7 +440,7 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
                 args: Some(args),
             }),
             error: None,
-        }).now_or_never().unwrap_or(Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to send event")))
+        }).await
     }
 
     /// Sends an Response to ther server

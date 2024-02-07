@@ -1,6 +1,6 @@
 [package]
 name = "iotscape"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 authors = ["Gordon Stein"]
 license = "MIT OR Apache-2.0"
@@ -29,4 +29,4 @@ std = []
 tokio = ["std", "dep:tokio", "dep:futures"]
 # Use the `no_deadlocks` feature to enable the `no_deadlocks` crate for detecting deadlocks
 no_deadlocks = ["std", "dep:no_deadlocks"]
-default = ["std"]
+default = ["std", "tokio", "no_deadlocks"]

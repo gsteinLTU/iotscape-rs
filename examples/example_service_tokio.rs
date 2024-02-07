@@ -7,8 +7,6 @@ use std::{
 };
 
 #[cfg(feature = "tokio")]
-use futures::FutureExt;
-#[cfg(feature = "tokio")]
 use iotscape::*;
 #[cfg(feature = "tokio")]
 use log::info;
@@ -141,7 +139,7 @@ async fn main() {
                 match next_msg.function.as_str() {
                     "helloWorld" => {
                         service
-                            .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).now_or_never().unwrap().expect("Could not enqueue response");
+                            .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).await.expect("Could not enqueue response");
                     },
                     "add" => {
                         let result: f64 = next_msg
@@ -151,7 +149,7 @@ async fn main() {
                             .sum();
                         
                         service
-                            .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).now_or_never().unwrap().expect("Could not enqueue response");
+                            .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).await.expect("Could not enqueue response");
                     },
                     "timer" => {
                         info!("Received timer request {:?}", next_msg);
@@ -167,16 +165,16 @@ async fn main() {
                             BTreeMap::new(),
                         ));
                         service
-                            .enqueue_response_to(next_msg, Ok(vec![])).now_or_never().unwrap().expect("Could not enqueue response");    
+                            .enqueue_response_to(next_msg, Ok(vec![])).await.expect("Could not enqueue response");    
                     },
                     "returnComplex" => {
                         service
-                            .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).now_or_never().unwrap().expect("Could not enqueue response");                  
+                            .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).await.expect("Could not enqueue response");                  
                     },
                     "_requestedKey" => {
                         println!("Received key: {:?}", next_msg.params);
                         service
-                            .enqueue_response_to(next_msg, Ok(vec![])).now_or_never().unwrap().expect("Could not enqueue response");      
+                            .enqueue_response_to(next_msg, Ok(vec![])).await.expect("Could not enqueue response");      
                     },
                     t => {
                         println!("Unrecognized function {}", t);
@@ -201,14 +199,14 @@ async fn main() {
         match command {
             "getkey" => {
                 let next_msg_id = service.next_msg_id.load(std::sync::atomic::Ordering::Relaxed).to_string();
-                service.send_event(&next_msg_id, "_requestKey", BTreeMap::default()).now_or_never().unwrap().expect("Could not send event");
+                service.send_event(&next_msg_id, "_requestKey", BTreeMap::default()).await.expect("Could not send event");
             },
             "reset" => {
                 let next_msg_id = service.next_msg_id.load(std::sync::atomic::Ordering::Relaxed).to_string();
-                service.send_event(&next_msg_id, "_reset", BTreeMap::default()).now_or_never().unwrap().expect("Could not send event");
+                service.send_event(&next_msg_id, "_reset", BTreeMap::default()).await.expect("Could not send event");
             },
             "announce" => {
-                service.announce().now_or_never().unwrap().expect("Could not announce to server");
+                service.announce().await.expect("Could not announce to server");
             },
             "help" => {
                 println!("Commands:");
@@ -238,7 +236,7 @@ async fn delayed_event(
     tokio::time::sleep(Duration::from_millis(delay)).await;
     println!("Sending event {} with args {:?} after {} ms", event_type, args, delay);
     service.clone()
-        .send_event(call_id.as_str(), event_type, args).now_or_never().unwrap().expect("Could not send event");
+        .send_event(call_id.as_str(), event_type, args).await.expect("Could not send event");
 }
 
 #[cfg(not(feature = "tokio"))]
