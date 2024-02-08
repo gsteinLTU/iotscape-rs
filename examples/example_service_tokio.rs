@@ -10,11 +10,15 @@ use std::{
 use iotscape::*;
 #[cfg(feature = "tokio")]
 use log::info;
+#[cfg(feature = "tokio")]
+use tokio::spawn;
+
 
 #[cfg(feature = "tokio")]
 #[tokio::main]
 async fn main() {
     // Create definition struct
+
     let mut definition = ServiceDefinition {
         id: "rs1".to_owned(),
         methods: BTreeMap::new(),
@@ -135,51 +139,52 @@ async fn main() {
             while let Some(next_msg) = service.rx_queue.lock().unwrap().pop_front() {
                 println!("Handling message {:?}", next_msg);
 
-                // Request handlers
-                match next_msg.function.as_str() {
-                    "helloWorld" => {
-                        service
-                            .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).await.expect("Could not enqueue response");
-                    },
-                    "add" => {
-                        let result: f64 = next_msg
-                            .params
-                            .iter()
-                            .map(|v| v.as_f64().unwrap_or_default())
-                            .sum();
-                        
-                        service
-                            .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).await.expect("Could not enqueue response");
-                    },
-                    "timer" => {
-                        info!("Received timer request {:?}", next_msg);
-                        let ms = next_msg
-                            .params
-                            .get(0).and_then(|x| u64::from_str_radix(&x.to_string(), 10).ok())
-                            .unwrap_or(0);
-                        tokio::spawn(delayed_event(
-                            service.clone(),
-                            ms,
-                            next_msg.id.clone(),
-                            "timer",
-                            BTreeMap::new(),
-                        ));
-                        service
-                            .enqueue_response_to(next_msg, Ok(vec![])).await.expect("Could not enqueue response");    
-                    },
-                    "returnComplex" => {
-                        service
-                            .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).await.expect("Could not enqueue response");                  
-                    },
-                    "_requestedKey" => {
-                        println!("Received key: {:?}", next_msg.params);
-                        service
-                            .enqueue_response_to(next_msg, Ok(vec![])).await.expect("Could not enqueue response");      
-                    },
-                    t => {
-                        println!("Unrecognized function {}", t);
+                let service = service.clone();
+                spawn(async move { 
+                    // Request handlers
+                    match next_msg.function.as_str() {
+                        "helloWorld" => {
+                                service.enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).await.expect("Could not enqueue response");
+                        },
+                        "add" => {
+                            let result: f64 = next_msg
+                                .params
+                                .iter()
+                                .map(|v| v.as_f64().unwrap_or_default())
+                                .sum(); 
+                                service
+                                    .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).await.expect("Could not enqueue response");
+                        },
+                        "timer" => {
+                            info!("Received timer request {:?}", next_msg);
+                            let ms = next_msg
+                                .params
+                                .get(0).and_then(|x| u64::from_str_radix(&x.to_string(), 10).ok())
+                                .unwrap_or(0);
+                            spawn(delayed_event(
+                                service.clone(),
+                                ms,
+                                next_msg.id.clone(),
+                                "timer",
+                                BTreeMap::new(),
+                            ));
+                            service
+                                .enqueue_response_to(next_msg, Ok(vec![])).await.expect("Could not enqueue response");    
+                        },
+                        "returnComplex" => {
+                            service
+                                .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).await.expect("Could not enqueue response");                  
+                        },
+                        "_requestedKey" => {
+                            println!("Received key: {:?}", next_msg.params);
+                            service
+                                .enqueue_response_to(next_msg, Ok(vec![])).await.expect("Could not enqueue response");      
+                        },
+                        t => {
+                            println!("Unrecognized function {}", t);
+                        }
                     }
-                }
+                });
             }
         }
     });
