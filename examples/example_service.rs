@@ -107,11 +107,12 @@ async fn main() {
         server.parse().unwrap(),
     )));
 
-    service
+    if let Err(e) = service
         .lock()
         .unwrap()
-        .announce()
-        .expect("Could not announce to server");
+        .announce() {
+        println!("Could not announce to server: {}", e);
+    }
 
     let mut last_announce = Instant::now();
     let announce_period = Duration::from_secs(30);
@@ -126,11 +127,12 @@ async fn main() {
 
             // Re-announce to server regularly
             if last_announce.elapsed() > announce_period {
-                service
+                if let Err(e) = service
                     .lock()
                     .unwrap()
-                    .announce()
-                    .expect("Could not announce to server");
+                    .announce() {
+                    println!("Could not announce to server: {}", e);
+                }
                 last_announce = Instant::now();
             }
 
@@ -225,6 +227,9 @@ async fn main() {
                     service.lock().unwrap().announce_http(&announce_endpoint).expect("Could not announce to server");
                 }).await.expect("Could not spawn blocking task");
             },
+            "announcelite" => {
+                service.lock().unwrap().announce_lite().expect("Could not announce to server");
+            },
             "getkey" => {
                 let mut s = service.lock().unwrap();
                 let next_msg_id = s.next_msg_id.to_string();
@@ -241,6 +246,7 @@ async fn main() {
                 println!("Commands:");
                 println!("  announce - send a new announce to the server");
                 println!("  announcehttp - send a new announce to the server via HTTP");
+                println!("  announcelite - send a new announce to the server with minimal information");
                 println!("  getkey - request a key from the server");
                 println!("  reset - reset the encryption settings on the server");
                 println!("  quit - exit the program");

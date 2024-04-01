@@ -213,6 +213,26 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
         self.socket.send_to(definition_string.as_bytes(), self.server)
     }
 
+    /// Announce without full definition
+    pub fn announce_lite(&mut self) -> Result<usize, String> {
+        let mut definition_lite = self.definition.clone();
+        definition_lite.methods = BTreeMap::new();
+        definition_lite.events = BTreeMap::new();
+        definition_lite.description.description = None;
+        definition_lite.description.externalDocumentation = None;
+        definition_lite.description.termsOfService = None;
+        definition_lite.description.contact = None;
+        definition_lite.description.license = None;        
+
+        let definition_string = serde_json::to_string(&BTreeMap::from([(
+            self.name.to_owned(),
+            &definition_lite,
+        )])).unwrap();
+        
+        // Send to server
+        trace!("Announcing {:?}", definition_string);
+        self.socket.send_to(definition_string.as_bytes(), self.server)        
+    }
     
     /// Handle rx/tx
     pub fn poll(&mut self, timeout: Option<Duration>) {
@@ -368,6 +388,28 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
         trace!("Announcing {:?}", self.cached_definition);
         self.socket
             .send_to(self.cached_definition.as_bytes(), self.server).await
+    }
+
+
+    /// Announce without full definition
+    pub async fn announce_lite(&mut self) -> Result<usize, std::io::Error> {
+        let mut definition_lite = self.definition.clone();
+        definition_lite.methods = BTreeMap::new();
+        definition_lite.events = BTreeMap::new();
+        definition_lite.description.description = None;
+        definition_lite.description.externalDocumentation = None;
+        definition_lite.description.termsOfService = None;
+        definition_lite.description.contact = None;
+        definition_lite.description.license = None;        
+
+        let definition_string = serde_json::to_string(&BTreeMap::from([(
+            self.name.to_owned(),
+            &definition_lite,
+        )])).unwrap();
+        
+        // Send to server
+        trace!("Announcing {:?}", definition_string);
+        self.socket.send_to(definition_string.as_bytes(), self.server).await
     }
 
     #[cfg(feature = "http_announce")]
