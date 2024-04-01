@@ -104,6 +104,9 @@ async fn main() {
 
     let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string());
     //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
+    //let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("https://services.netsblox.org/routes/iotscape/announce".to_string());
+    let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/announce".to_string());
+
     let service: Arc<IoTScapeServiceAsync> = Arc::from(IoTScapeServiceAsync::new(
         "ExampleService",
         definition,
@@ -213,9 +216,13 @@ async fn main() {
             "announce" => {
                 service.announce().await.expect("Could not announce to server");
             },
+            "announcehttp" => {
+                service.announce_http(&ANNOUNCE_ENDPOINT).await.expect("Could not announce to server");
+            },
             "help" => {
                 println!("Commands:");
                 println!("  announce - send a new announce to the server");
+                println!("  announcehttp - send a new announce to the server over HTTP");
                 println!("  getkey - request a key from the server");
                 println!("  reset - reset the encryption settings on the server");
                 println!("  quit - exit the program");

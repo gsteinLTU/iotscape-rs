@@ -9,6 +9,9 @@ use iotscape::*;
 
 #[tokio::main]
 async fn main() {
+    // Setup logger
+    simple_logger::init_with_level(log::Level::Info).unwrap();
+
     // Create definition struct
     let mut definition = ServiceDefinition {
         id: "rs1".to_owned(),
@@ -93,8 +96,11 @@ async fn main() {
         EventDescription { params: vec![] },
     );
 
-    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string());
-    //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
+    //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string());
+    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
+    //let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("https://services.netsblox.org/routes/iotscape/announce".to_string());
+    let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/announce".to_string());
+
     let service: Arc<Mutex<IoTScapeService>> = Arc::from(Mutex::new(IoTScapeService::new(
         "ExampleService",
         definition,
@@ -209,6 +215,16 @@ async fn main() {
         let _args = parts.collect::<Vec<&str>>();
         
         match command {
+            "announce" => {
+                service.lock().unwrap().announce().expect("Could not announce to server");
+            },
+            "announcehttp" => {
+                let service = Arc::clone(&service);
+                let announce_endpoint = ANNOUNCE_ENDPOINT.clone();
+                tokio::task::spawn_blocking(move || {
+                    service.lock().unwrap().announce_http(&announce_endpoint).expect("Could not announce to server");
+                }).await.expect("Could not spawn blocking task");
+            },
             "getkey" => {
                 let mut s = service.lock().unwrap();
                 let next_msg_id = s.next_msg_id.to_string();
@@ -223,6 +239,8 @@ async fn main() {
             },
             "help" => {
                 println!("Commands:");
+                println!("  announce - send a new announce to the server");
+                println!("  announcehttp - send a new announce to the server via HTTP");
                 println!("  getkey - request a key from the server");
                 println!("  reset - reset the encryption settings on the server");
                 println!("  quit - exit the program");

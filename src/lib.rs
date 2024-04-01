@@ -160,6 +160,32 @@ pub struct IoTScapeService<SocketType: SocketTrait = StdUdpSocket> {
 pub type IoTScapeServiceUdp = IoTScapeService<StdUdpSocket>;
 
 impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
+
+    #[cfg(feature = "http_announce")]
+    pub fn announce_http(&mut self, endpoint: &str) -> Result<reqwest::blocking::Response, reqwest::Error> {
+        let client = reqwest::blocking::Client::new();
+
+        trace!("Announcing {} to {}", self.get_definition(), endpoint);
+
+        client.post(endpoint)
+            .body(self.get_definition())
+            .header("Content-Type", "application/json")
+            .send()
+    }
+
+    fn get_definition(&mut self) -> String {
+        // Serialize definition if not already cached
+        if self.cached_definition.is_none() {
+            self.cached_definition = Some(serde_json::to_string(&BTreeMap::from([(
+                self.name.to_owned(),
+                &self.definition,
+            )]))
+            .unwrap());
+        }
+
+        self.cached_definition.clone().unwrap()
+    }
+    
     pub fn new(name: &str, definition: ServiceDefinition, server: SocketAddr) -> Self {
         let addrs = [
             SocketAddr::from(([0, 0, 0, 0], 0)),
@@ -180,24 +206,14 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
 
     /// Send the service description to the server
     pub fn announce(&mut self) -> Result<usize, String> {
-        // Serialize definition if not already cached
-        let mut definition_string = self.cached_definition.as_ref();
-        if definition_string.is_none() {
-            self.cached_definition = Some(serde_json::to_string(&BTreeMap::from([(
-                self.name.to_owned(),
-                &self.definition,
-            )]))
-            .unwrap());
-            definition_string = self.cached_definition.as_ref();
-        }
-        let definition_string = definition_string.unwrap();
+        let definition_string = self.get_definition();
 
         // Send to server
         trace!("Announcing {:?}", definition_string);
-        self.socket
-            .send_to(definition_string.as_bytes(), self.server)
+        self.socket.send_to(definition_string.as_bytes(), self.server)
     }
 
+    
     /// Handle rx/tx
     pub fn poll(&mut self, timeout: Option<Duration>) {
         self.socket
@@ -352,6 +368,16 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
         trace!("Announcing {:?}", self.cached_definition);
         self.socket
             .send_to(self.cached_definition.as_bytes(), self.server).await
+    }
+
+    #[cfg(feature = "http_announce")]
+    pub async fn announce_http(&self, endpoint: &str) -> Result<reqwest::Response, reqwest::Error> {
+        let client = reqwest::Client::new();
+
+        client.post(endpoint)
+            .body(self.cached_definition.to_owned())
+            .header("Content-Type", "application/json")
+            .send().await
     }
 
     /// Handle rx/tx

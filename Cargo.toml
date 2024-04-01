@@ -1,6 +1,6 @@
 [package]
 name = "iotscape"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 authors = ["Gordon Stein"]
 license = "MIT OR Apache-2.0"
@@ -15,18 +15,21 @@ crate-type = ["lib"]
 [dependencies]
 log = "0.4"
 no-std-net = "0.6"
-serde = { version = "1.0", default-features = false , features = ["derive", "alloc"] }
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+serde = { version = "1", default-features = false , features = ["derive", "alloc"] }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
 tokio = { version = "1", default-features = false, features = ["net"], optional = true }
 futures = { version = "0.3", default-features = false, optional = true }
 no_deadlocks = { version = "1.3", optional = true }
+reqwest = { version = "0.12", optional = true, features = ["blocking"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+simple_logger = "4.3"
 
 [features]
 std = []
 tokio = ["std", "dep:tokio", "dep:futures"]
+http_announce = ["std", "dep:reqwest"]
 # Use the `no_deadlocks` feature to enable the `no_deadlocks` crate for detecting deadlocks
 no_deadlocks = ["std", "dep:no_deadlocks"]
-default = ["std"]
+default = ["std", "tokio", "http_announce"]
