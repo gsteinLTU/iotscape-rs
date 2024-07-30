@@ -5,6 +5,8 @@ use std::{
     vec,
 };
 
+use std::str::FromStr;
+
 use iotscape::*;
 
 #[tokio::main]
@@ -96,8 +98,8 @@ async fn main() {
         EventDescription { params: vec![] },
     );
 
-    //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string());
-    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
+    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string());
+    //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
     //let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("https://services.netsblox.org/routes/iotscape/announce".to_string());
     let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/announce".to_string());
 
@@ -155,10 +157,16 @@ async fn main() {
                             .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).unwrap();
                     },
                     "add" => {
+                        
                         let result: f64 = next_msg
                             .params
                             .iter()
-                            .map(|v| v.as_f64().unwrap_or_default())
+                            .map(|v| 
+                                match v {
+                                    serde_json::Value::Number(n) => n.as_f64().unwrap_or_default(),
+                                    serde_json::Value::String(s) => f64::from_str(&s).unwrap_or_default(),
+                                    _ => 0.0,
+                                })
                             .sum();
                         
                         service
