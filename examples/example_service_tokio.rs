@@ -108,6 +108,7 @@ async fn main() {
     let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
     //let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("https://services.netsblox.org/routes/iotscape/announce".to_string());
     let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/announce".to_string());
+    let RESPONSE_ENDPOINT = std::env::var("IOTSCAPE_RESPONSE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/response".to_string());
 
     let service: Arc<IoTScapeServiceAsync> = Arc::from(IoTScapeServiceAsync::new(
         "ExampleService",
@@ -145,6 +146,7 @@ async fn main() {
                 println!("Handling message {:?}", next_msg);
 
                 let service = service.clone();
+                let RESPONSE_ENDPOINT = RESPONSE_ENDPOINT.clone();
                 spawn(async move { 
                     // Request handlers
                     match next_msg.function.as_str() {
@@ -163,7 +165,7 @@ async fn main() {
                                     })
                                 .sum(); 
                                 service
-                                    .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).await.expect("Could not enqueue response");
+                                    .enqueue_response_to_http(&RESPONSE_ENDPOINT, next_msg, Ok(vec![result.to_string().into()])).await.expect("Could not enqueue response");
                         },
                         "timer" => {
                             info!("Received timer request {:?}", next_msg);
@@ -182,8 +184,11 @@ async fn main() {
                                 .enqueue_response_to(next_msg, Ok(vec![])).await.expect("Could not enqueue response");    
                         },
                         "returnComplex" => {
+                            // Load image
+                            let image = std::fs::read("examples/figure.png").expect("Could not read image file");
+                            let image = "<costume  name=\"costume\" collabId=\"\" center-x=\"43.5\" center-y=\"62\" image=\"data:image/png;base64,".to_string() + base64::encode(&image).as_str() + "\"/>";
                             service
-                                .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).await.expect("Could not enqueue response");                  
+                                .enqueue_response_to_http(&RESPONSE_ENDPOINT, next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into(), vec![image].into()].into()])).await.expect("Could not enqueue response");
                         },
                         "_requestedKey" => {
                             println!("Received key: {:?}", next_msg.params);

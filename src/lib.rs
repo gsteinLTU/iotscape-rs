@@ -337,6 +337,47 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
         self.socket
             .send_to(as_string.as_bytes(), self.server)
     }
+
+
+    /// Create a response to an Request and enqueue it for sending
+    #[cfg(feature = "http_response")]
+    pub fn enqueue_response_to_http(
+        &self, 
+        endpoint: &str,
+        request: Request,
+        params: Result<Vec<Value>, String>,
+    ) -> Result<reqwest::blocking::Response, reqwest::Error> {
+        let mut response = None;
+        let mut error = None;
+
+        match params {
+            Ok(p) => {
+                response = Some(p);
+            }
+            Err(e) => {
+                error = Some(e);
+            }
+        }
+
+        self.send_response_http(endpoint, Response {
+            id: self.definition.id.clone(),
+            request: request.id.to_owned(),
+            service: request.service,
+            response,
+            event: None,
+            error,
+        })
+    }
+    
+    #[cfg(feature = "http_response")]
+    fn send_response_http(&self, endpoint: &str, response: Response) -> Result<reqwest::blocking::Response, reqwest::Error> {
+        let client = reqwest::blocking::ClientBuilder::new().timeout(Duration::from_secs(5)).connect_timeout(Duration::from_secs(5)).build().unwrap();
+
+        client.post(endpoint)
+            .body(serde_json::to_string(&response).unwrap())
+            .header("Content-Type", "application/json")
+            .send()
+    }
 }
 
 
@@ -519,5 +560,45 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
             .send_to(as_string.as_bytes(), self.server).await;
         self.next_msg_id.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
         r
+    }
+
+    /// Create a response to an Request and enqueue it for sending
+    #[cfg(feature = "http_response")]
+    pub async fn enqueue_response_to_http(
+        &self, 
+        endpoint: &str,
+        request: Request,
+        params: Result<Vec<Value>, String>,
+    ) -> Result<reqwest::Response, reqwest::Error> {
+        let mut response = None;
+        let mut error = None;
+
+        match params {
+            Ok(p) => {
+                response = Some(p);
+            }
+            Err(e) => {
+                error = Some(e);
+            }
+        }
+
+        self.send_response_http(endpoint, Response {
+            id: self.definition.id.clone(),
+            request: request.id.to_owned(),
+            service: request.service,
+            response,
+            event: None,
+            error,
+        }).await
+    }
+    
+    #[cfg(feature = "http_response")]
+    async fn send_response_http(&self, endpoint: &str, response: Response) -> Result<reqwest::Response, reqwest::Error> {
+        let client = reqwest::Client::new();
+
+        client.post(endpoint)
+            .body(serde_json::to_string(&response).unwrap())
+            .header("Content-Type", "application/json")
+            .send().await
     }
 }

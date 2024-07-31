@@ -98,10 +98,11 @@ async fn main() {
         EventDescription { params: vec![] },
     );
 
-    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string());
-    //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
+    //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string());
+    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
     //let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("https://services.netsblox.org/routes/iotscape/announce".to_string());
     let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/announce".to_string());
+    let RESPONSE_ENDPOINT = std::env::var("IOTSCAPE_RESPONSE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/response".to_string());
 
     let service: Arc<Mutex<IoTScapeService>> = Arc::from(Mutex::new(IoTScapeService::new(
         "ExampleService",
@@ -129,6 +130,8 @@ async fn main() {
 
             // Re-announce to server regularly
             if last_announce.elapsed() > announce_period {
+                println!("Re-announcing to server");
+
                 if let Err(e) = service
                     .lock()
                     .unwrap()
@@ -157,7 +160,6 @@ async fn main() {
                             .enqueue_response_to(next_msg, Ok(vec!["Hello, World!".to_owned().into()])).unwrap();
                     },
                     "add" => {
-                        
                         let result: f64 = next_msg
                             .params
                             .iter()
@@ -168,11 +170,14 @@ async fn main() {
                                     _ => 0.0,
                                 })
                             .sum();
-                        
-                        service
-                            .lock()
-                            .unwrap()
-                            .enqueue_response_to(next_msg, Ok(vec![result.to_string().into()])).unwrap();
+                        let service: Arc<Mutex<IoTScapeService>> = service.clone();
+                        let RESPONSE_ENDPOINT = RESPONSE_ENDPOINT.clone();
+                        tokio::task::spawn_blocking(move || {
+                            service
+                                .lock()
+                                .unwrap()
+                                .enqueue_response_to_http(&RESPONSE_ENDPOINT, next_msg, Ok(vec![result.to_string().into()])).unwrap();
+                        });
                     },
                     "timer" => {
                         let ms = next_msg
@@ -192,10 +197,15 @@ async fn main() {
                             .enqueue_response_to(next_msg, Ok(vec![])).unwrap();      
                     },
                     "returnComplex" => {
-                        service
-                            .lock()
-                            .unwrap()
-                            .enqueue_response_to(next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into()].into()])).unwrap();                    
+                        // Load image
+                        let image = std::fs::read("examples/figure.png").expect("Could not read image file");
+                        let image = "<costume  name=\"costume\" collabId=\"\" center-x=\"43.5\" center-y=\"62\" image=\"data:image/png;base64,".to_string() + base64::encode(&image).as_str() + "\"/>";
+                        let service: Arc<Mutex<IoTScapeService>> = service.clone();
+                        let RESPONSE_ENDPOINT = RESPONSE_ENDPOINT.clone();
+                        tokio::task::spawn_blocking(move || {
+                            service.lock().unwrap()
+                                .enqueue_response_to_http(&RESPONSE_ENDPOINT, next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into(), vec![image].into()].into()])).expect("Could not enqueue response");
+                        });
                     },
                     "_requestedKey" => {
                         println!("Received key: {:?}", next_msg.params);
