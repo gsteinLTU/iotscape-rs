@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, LazyLock, Mutex},
     time::{Duration, Instant},
     vec,
 };
@@ -8,6 +8,13 @@ use std::{
 use std::str::FromStr;
 
 use iotscape::*;
+
+//static SERVER: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string()));
+static SERVER: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string()));
+//static ANNOUNCE_ENDPOINT: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("https://services.netsblox.org/routes/iotscape/announce".to_string()));
+static ANNOUNCE_ENDPOINT: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/announce".to_string()));
+// static RESPONSE_ENDPOINT: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_RESPONSE_ENDPOINT").unwrap_or("http://services.netsblox.org/routes/iotscape/response".to_string()));
+static RESPONSE_ENDPOINT: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_RESPONSE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/response".to_string()));
 
 #[tokio::main]
 async fn main() {
@@ -98,16 +105,10 @@ async fn main() {
         EventDescription { params: vec![] },
     );
 
-    //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string());
-    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
-    //let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("https://services.netsblox.org/routes/iotscape/announce".to_string());
-    let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/announce".to_string());
-    let RESPONSE_ENDPOINT = std::env::var("IOTSCAPE_RESPONSE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/response".to_string());
-
     let service: Arc<Mutex<IoTScapeService>> = Arc::from(Mutex::new(IoTScapeService::new(
         "ExampleService",
         definition,
-        server.parse().unwrap(),
+        SERVER.parse().unwrap(),
     )));
 
     if let Err(e) = service
@@ -171,7 +172,6 @@ async fn main() {
                                 })
                             .sum();
                         let service: Arc<Mutex<IoTScapeService>> = service.clone();
-                        let RESPONSE_ENDPOINT = RESPONSE_ENDPOINT.clone();
                         tokio::task::spawn_blocking(move || {
                             service
                                 .lock()
@@ -201,10 +201,9 @@ async fn main() {
                         let image = std::fs::read("examples/figure.png").expect("Could not read image file");
                         let image = "<costume  name=\"costume\" collabId=\"\" center-x=\"43.5\" center-y=\"62\" image=\"data:image/png;base64,".to_string() + base64::encode(&image).as_str() + "\"/>";
                         let service: Arc<Mutex<IoTScapeService>> = service.clone();
-                        let RESPONSE_ENDPOINT = RESPONSE_ENDPOINT.clone();
                         tokio::task::spawn_blocking(move || {
                             service.lock().unwrap()
-                                .enqueue_response_to_http(&RESPONSE_ENDPOINT, next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into(), vec![image].into()].into()])).expect("Could not enqueue response");
+                               .enqueue_response_to_http(&RESPONSE_ENDPOINT, next_msg, Ok(vec![vec![Into::<serde_json::Value>::into("test"), vec![1, 2, 3].into(), vec![image].into()].into()])).expect("Could not enqueue response");
                         });
                     },
                     "_requestedKey" => {

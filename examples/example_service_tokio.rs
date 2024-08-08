@@ -1,3 +1,4 @@
+use std::sync::LazyLock;
 #[cfg(feature = "tokio")]
 use std::{
     collections::BTreeMap,
@@ -15,6 +16,12 @@ use log::info;
 #[cfg(feature = "tokio")]
 use tokio::spawn;
 
+//static SERVER: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string()));
+static SERVER: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string()));
+//static ANNOUNCE_ENDPOINT: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("https://services.netsblox.org/routes/iotscape/announce".to_string()));
+static ANNOUNCE_ENDPOINT: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/announce".to_string()));
+// static RESPONSE_ENDPOINT: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_RESPONSE_ENDPOINT").unwrap_or("http://services.netsblox.org/routes/iotscape/response".to_string()));
+static RESPONSE_ENDPOINT: LazyLock<String> = LazyLock::new(|| std::env::var("IOTSCAPE_RESPONSE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/response".to_string()));
 
 #[cfg(feature = "tokio")]
 #[tokio::main]
@@ -104,16 +111,10 @@ async fn main() {
         EventDescription { params: vec![] },
     );
 
-    //let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("52.73.65.98:1978".to_string());
-    let server = std::env::var("IOTSCAPE_SERVER").unwrap_or("127.0.0.1:1978".to_string());
-    //let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("https://services.netsblox.org/routes/iotscape/announce".to_string());
-    let ANNOUNCE_ENDPOINT = std::env::var("IOTSCAPE_ANNOUNCE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/announce".to_string());
-    let RESPONSE_ENDPOINT = std::env::var("IOTSCAPE_RESPONSE_ENDPOINT").unwrap_or("http://localhost:8080/routes/iotscape/response".to_string());
-
     let service: Arc<IoTScapeServiceAsync> = Arc::from(IoTScapeServiceAsync::new(
         "ExampleService",
         definition,
-        server.parse().unwrap(),
+        SERVER.parse().unwrap(),
     ).await);
 
     service
@@ -146,7 +147,6 @@ async fn main() {
                 println!("Handling message {:?}", next_msg);
 
                 let service = service.clone();
-                let RESPONSE_ENDPOINT = RESPONSE_ENDPOINT.clone();
                 spawn(async move { 
                     // Request handlers
                     match next_msg.function.as_str() {
