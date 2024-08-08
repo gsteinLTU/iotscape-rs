@@ -214,7 +214,7 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
     }
 
     /// Announce without full definition
-    pub fn announce_lite(&mut self) -> Result<usize, String> {
+    pub fn announce_lite(&self) -> Result<usize, String> {
         let mut definition_lite = self.definition.clone();
         definition_lite.methods = BTreeMap::new();
         definition_lite.events = BTreeMap::new();
@@ -433,7 +433,7 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
 
 
     /// Announce without full definition
-    pub async fn announce_lite(&mut self) -> Result<usize, std::io::Error> {
+    pub async fn announce_lite(&self) -> Result<usize, std::io::Error> {
         let mut definition_lite = self.definition.clone();
         definition_lite.methods = BTreeMap::new();
         definition_lite.events = BTreeMap::new();
