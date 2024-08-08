@@ -1,6 +1,6 @@
 [package]
 name = "iotscape"
-version = "0.5.5"
+version = "0.5.6"
 edition = "2021"
 authors = ["Gordon Stein"]
 license = "MIT OR Apache-2.0"
@@ -20,10 +20,11 @@ serde_json = { version = "1", default-features = false, features = ["alloc"] }
 tokio = { version = "1", default-features = false, features = ["net"], optional = true }
 futures = { version = "0.3", default-features = false, optional = true }
 no_deadlocks = { version = "1.3", optional = true }
-reqwest = { version = "0.12", optional = true, features = ["blocking"] }
+reqwest = { version = "0.12", default-features = false, optional = true, features = ["blocking"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 simple_logger = "5.0.0"
 base64 = "0.22"
 
