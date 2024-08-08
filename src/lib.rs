@@ -163,11 +163,9 @@ impl<SocketType: SocketTrait> IoTScapeService<SocketType> {
 
     #[cfg(feature = "http_announce")]
     pub fn announce_http(&mut self, endpoint: &str) -> Result<reqwest::blocking::Response, reqwest::Error> {
-        let client = reqwest::blocking::Client::new();
-
         trace!("Announcing {} to {}", self.get_definition(), endpoint);
 
-        client.post(endpoint)
+        reqwest::blocking::Client::new().post(endpoint)
             .body(self.get_definition())
             .header("Content-Type", "application/json")
             .send()
@@ -391,6 +389,8 @@ pub struct IoTScapeServiceAsync<SocketType: SocketTraitAsync = TokioUdpSocket> {
     pub next_msg_id: AtomicU64,
     pub rx_queue: Arc<Mutex<VecDeque<Request>>>,
     pub tx_queue: Arc<Mutex<VecDeque<Response>>>,
+    #[cfg(any(feature = "http_announce", feature = "http_response"))]
+    pub client: reqwest::Client,
 }
 
 #[cfg(feature = "tokio")]
@@ -420,6 +420,8 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
             rx_queue: Arc::new(Mutex::new(VecDeque::<Request>::new())),
             tx_queue: Arc::new(Mutex::new(VecDeque::<Response>::new())),
             next_msg_id: AtomicU64::new(0),
+            #[cfg(any(feature = "http_announce", feature = "http_response"))]
+            client: reqwest::Client::new(),
         }
     }
 
@@ -455,9 +457,7 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
 
     #[cfg(feature = "http_announce")]
     pub async fn announce_http(&self, endpoint: &str) -> Result<reqwest::Response, reqwest::Error> {
-        let client = reqwest::Client::new();
-
-        client.post(endpoint)
+        self.client.post(endpoint)
             .body(self.cached_definition.to_owned())
             .header("Content-Type", "application/json")
             .send().await
@@ -594,9 +594,7 @@ impl<SocketType: SocketTraitAsync> IoTScapeServiceAsync<SocketType> {
     
     #[cfg(feature = "http_response")]
     async fn send_response_http(&self, endpoint: &str, response: Response) -> Result<reqwest::Response, reqwest::Error> {
-        let client = reqwest::Client::new();
-
-        client.post(endpoint)
+        self.client.post(endpoint)
             .body(serde_json::to_string(&response).unwrap())
             .header("Content-Type", "application/json")
             .send().await
